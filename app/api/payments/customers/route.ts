@@ -7,15 +7,47 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Função para validar UUID
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+// Função para gerar UUID válido
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Função para garantir userId válido
+function ensureValidUserId(userId: string): string {
+  if (!userId) {
+    console.log('⚠️ UserId vazio, gerando novo UUID');
+    return generateUUID();
+  }
+  
+  if (isValidUUID(userId)) {
+    console.log('✅ UserId é um UUID válido:', userId);
+    return userId;
+  }
+  
+  console.log('⚠️ UserId não é um UUID válido:', userId, 'gerando novo');
+  return generateUUID();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const rawUserId = searchParams.get('userId');
 
-    if (!userId) {
+    if (!rawUserId) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
     }
 
+    const userId = ensureValidUserId(rawUserId);
     console.log('🔍 Buscando cliente para userId:', userId);
 
     // Buscar cliente Asaas salvo no banco
@@ -44,7 +76,7 @@ export async function POST(request: NextRequest) {
     console.log('📝 Dados recebidos para criar cliente:', body);
     
     const {
-      userId,
+      userId: rawUserId,
       name,
       email,
       phone,
@@ -58,12 +90,16 @@ export async function POST(request: NextRequest) {
       state
     } = body;
 
-    if (!userId || !name || !email) {
-      console.log('❌ Dados obrigatórios faltando:', { userId, name, email });
+    if (!rawUserId || !name || !email) {
+      console.log('❌ Dados obrigatórios faltando:', { rawUserId, name, email });
       return NextResponse.json({ 
         error: 'userId, name e email são obrigatórios' 
       }, { status: 400 });
     }
+
+    // Garantir que userId seja um UUID válido
+    const userId = ensureValidUserId(rawUserId);
+    console.log('🔧 UserId processado:', { original: rawUserId, processed: userId });
 
     // Verificar se o cliente já existe no banco
     console.log('🔍 Verificando se cliente já existe...');
@@ -103,7 +139,7 @@ export async function POST(request: NextRequest) {
     // Salvar no banco local
     console.log('💾 Salvando cliente no banco local...');
     const customerData = {
-      user_id: userId,
+      user_id: userId, // Usar o userId validado
       asaas_customer_id: mockAsaasCustomer.id,
       name: mockAsaasCustomer.name || name,
       email: mockAsaasCustomer.email || email,
@@ -139,7 +175,8 @@ export async function POST(request: NextRequest) {
     console.log('✅ Cliente salvo com sucesso:', customer.id);
     return NextResponse.json({ 
       customer,
-      warning: 'Cliente criado em modo temporário sem Asaas'
+      warning: 'Cliente criado em modo temporário sem Asaas',
+      processedUserId: userId // Retornar o userId processado para o frontend
     });
   } catch (error) {
     console.error('❌ Erro na API customers POST:', error);

@@ -16,6 +16,41 @@ interface PlanDetails {
 // Importar configuração centralizada de planos
 import { PLANS_CONFIG, formatPrice, getPlanById } from '../lib/plansConfig';
 
+// Função para validar UUID
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(uuid);
+}
+
+// Função para gerar UUID válido
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c == 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// Função para garantir userId válido
+function ensureValidUserId(userId: string | null): string {
+  if (!userId) {
+    console.log('⚠️ UserId vazio, gerando novo UUID');
+    const newUserId = generateUUID();
+    localStorage.setItem('userId', newUserId);
+    return newUserId;
+  }
+  
+  if (isValidUUID(userId)) {
+    console.log('✅ UserId é um UUID válido:', userId);
+    return userId;
+  }
+  
+  console.log('⚠️ UserId não é um UUID válido:', userId, 'gerando novo');
+  const newUserId = generateUUID();
+  localStorage.setItem('userId', newUserId);
+  return newUserId;
+}
+
 // Mapear planos para o formato necessário no checkout - SEM DUPLICATAS
 const PLANS: Record<string, PlanDetails> = PLANS_CONFIG.reduce((acc, plan) => {
   const planDetails = {
@@ -73,21 +108,25 @@ function CheckoutContent() {
       try {
         // Primeiro verificar localStorage para resposta rápida
         const isLoggedInLS = localStorage.getItem('isLoggedIn') === 'true';
-        const userId = localStorage.getItem('userId');
+        const rawUserId = localStorage.getItem('userId');
         const userEmail = localStorage.getItem('userEmail');
         const userName = localStorage.getItem('userName');
         
         console.log('🔍 Estado de autenticação no checkout:', {
           isLoggedInLS,
-          hasUserId: !!userId,
+          hasUserId: !!rawUserId,
           hasEmail: !!userEmail
         });
         
-        if (isLoggedInLS && userId && userEmail) {
+        if (isLoggedInLS && rawUserId && userEmail) {
           console.log('✅ Usuário autenticado pelo localStorage');
+          
+          // Garantir que userId seja um UUID válido
+          const validUserId = ensureValidUserId(rawUserId);
+          
           // Criar objeto user simulado
           setUser({
-            id: userId,
+            id: validUserId,
             email: userEmail,
             user_metadata: { full_name: userName || userEmail.split('@')[0] }
           });
@@ -185,6 +224,13 @@ function CheckoutContent() {
       if (!createResponse.ok) {
         console.error('❌ Erro ao criar cliente:', createData);
         throw new Error(createData.error || 'Erro ao criar cliente');
+      }
+
+      // Se o userId foi processado/alterado, atualizar no localStorage
+      if (createData.processedUserId && createData.processedUserId !== user.id) {
+        console.log('🔧 Atualizando userId no localStorage:', createData.processedUserId);
+        localStorage.setItem('userId', createData.processedUserId);
+        setUser(prev => ({ ...prev, id: createData.processedUserId }));
       }
 
       console.log('✅ Cliente criado com sucesso:', createData.customer.asaas_customer_id);
