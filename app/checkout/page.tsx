@@ -16,9 +16,8 @@ interface PlanDetails {
 // Importar configuração centralizada de planos
 import { PLANS_CONFIG, formatPrice, getPlanById } from '../lib/plansConfig';
 
-// Mapear planos para o formato necessário no checkout
+// Mapear planos para o formato necessário no checkout - SEM DUPLICATAS
 const PLANS: Record<string, PlanDetails> = PLANS_CONFIG.reduce((acc, plan) => {
-  // Usar tanto o ID original quanto o uppercase para compatibilidade
   const planDetails = {
     name: plan.name,
     price: plan.monthlyPrice,
@@ -26,8 +25,8 @@ const PLANS: Record<string, PlanDetails> = PLANS_CONFIG.reduce((acc, plan) => {
     popular: plan.popular || false
   };
   
-  acc[plan.id] = planDetails; // ID original
-  acc[plan.id.toUpperCase()] = planDetails; // ID em uppercase para compatibilidade
+  // Usar apenas o ID original - sem duplicatas
+  acc[plan.id] = planDetails;
   
   return acc;
 }, {} as Record<string, PlanDetails>);
@@ -89,8 +88,8 @@ function CheckoutContent() {
           });
         } else {
           console.log('🔄 Verificando autenticação via Supabase...');
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
             console.log('❌ Usuário não autenticado, redirecionando para login');
             const currentUrl = window.location.pathname + window.location.search;
             router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
@@ -113,8 +112,8 @@ function CheckoutContent() {
     console.log('🎯 Plano da URL:', plan);
     
     if (plan) {
-      // Normalizar o ID do plano (converter para uppercase para compatibilidade)
-      const normalizedPlan = plan.toUpperCase();
+      // Normalizar o ID do plano
+      const normalizedPlan = plan.toLowerCase();
       console.log('📝 Plano normalizado:', normalizedPlan);
       
       if (PLANS[normalizedPlan]) {
@@ -126,7 +125,7 @@ function CheckoutContent() {
         const planConfig = getPlanById(plan);
         if (planConfig) {
           console.log('✅ Plano encontrado na configuração:', planConfig);
-          setSelectedPlan(plan.toUpperCase());
+          setSelectedPlan(planConfig.id);
         }
       }
     }
@@ -241,12 +240,12 @@ function CheckoutContent() {
   };
 
   if (!user) {
-  return (
+    return (
       <div className="flex justify-center items-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin" />
-    </div>
-  );
-}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -256,19 +255,15 @@ function CheckoutContent() {
           
           {/* Planos Disponíveis */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold mb-4">Escolha seu Plano</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {Object.entries(PLANS).map(([key, plan]) => (
-                <div 
-                  key={key}
-                  className={`border rounded-lg p-4 cursor-pointer transition-all relative ${
-                    selectedPlan === key 
-                      ? 'border-blue-500 bg-blue-50' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedPlan(key)}
-                >
-                  {plan.popular && (
+            <h2 className="text-lg font-semibold mb-4">
+              {selectedPlan ? 'Plano Selecionado' : 'Escolha seu Plano'}
+            </h2>
+            
+            {selectedPlan ? (
+              // Mostrar apenas o plano selecionado
+              <div className="max-w-md mx-auto">
+                <div className="border-2 border-blue-500 bg-blue-50 rounded-lg p-6 relative">
+                  {PLANS[selectedPlan]?.popular && (
                     <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
                       <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
                         Popular
@@ -277,31 +272,84 @@ function CheckoutContent() {
                   )}
                   
                   <div className="text-center">
-                    <h3 className="font-semibold text-lg">{plan.name}</h3>
-                    <div className="text-2xl font-bold text-blue-600 my-2">
-                          R$ {plan.price.toFixed(2).replace('.', ',')}
+                    <h3 className="font-semibold text-xl text-blue-800">{PLANS[selectedPlan]?.name}</h3>
+                    <div className="text-3xl font-bold text-blue-600 my-4">
+                      R$ {PLANS[selectedPlan]?.price.toFixed(2).replace('.', ',')}
                       <span className="text-sm text-gray-500">/mês</span>
-                  </div>
-                  
-                    <ul className="text-sm space-y-1 mt-3">
-                      {plan.features.map((feature, index) => (
-                        <li key={index} className="flex items-center">
-                          <CheckCircle className="w-3 h-3 text-green-500 mr-1 flex-shrink-0" />
+                    </div>
+                    
+                    <ul className="text-sm space-y-2 mt-4">
+                      {PLANS[selectedPlan]?.features.map((feature, index) => (
+                        <li key={index} className="flex items-center text-gray-700">
+                          <CheckCircle className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" />
                           <span>{feature}</span>
                         </li>
                       ))}
                     </ul>
                   </div>
                   
-                  {selectedPlan === key && (
-                    <div className="absolute top-2 right-2">
-                      <CheckCircle className="w-5 h-5 text-blue-500" />
+                  <div className="absolute top-2 right-2">
+                    <CheckCircle className="w-6 h-6 text-blue-500" />
+                  </div>
                 </div>
-                  )}
+                
+                <div className="text-center mt-4">
+                  <button
+                    onClick={() => setSelectedPlan('')}
+                    className="text-blue-600 hover:text-blue-800 text-sm underline"
+                  >
+                    Escolher outro plano
+                  </button>
+                </div>
               </div>
-            ))}
+            ) : (
+              // Mostrar todos os planos para seleção
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Object.entries(PLANS).map(([key, plan]) => (
+                  <div 
+                    key={key}
+                    className={`border rounded-lg p-4 cursor-pointer transition-all relative ${
+                      selectedPlan === key 
+                        ? 'border-blue-500 bg-blue-50' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setSelectedPlan(key)}
+                  >
+                    {plan.popular && (
+                      <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
+                        <span className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
+                          Popular
+                        </span>
+                      </div>
+                    )}
+                    
+                    <div className="text-center">
+                      <h3 className="font-semibold text-lg">{plan.name}</h3>
+                      <div className="text-2xl font-bold text-blue-600 my-2">
+                        R$ {plan.price.toFixed(2).replace('.', ',')}
+                        <span className="text-sm text-gray-500">/mês</span>
+                      </div>
+                      
+                      <ul className="text-sm space-y-1 mt-3">
+                        {plan.features.map((feature, index) => (
+                          <li key={index} className="flex items-center">
+                            <CheckCircle className="w-3 h-3 text-green-500 mr-1 flex-shrink-0" />
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    
+                    {selectedPlan === key && (
+                      <div className="absolute top-2 right-2">
+                        <CheckCircle className="w-5 h-5 text-blue-500" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
 
           {/* Método de Pagamento */}
           <div className="mb-6">
