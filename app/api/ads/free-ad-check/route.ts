@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdminClient } from '../../lib/supabase';
+import { getSupabaseAdminClient } from '../../../lib/supabase';
 import { SubscriptionPlan } from '../../../models/types';
 
 // Função para verificar se o usuário pode criar um anúncio gratuito
