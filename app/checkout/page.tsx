@@ -58,7 +58,12 @@ function CheckoutContent() {
     email: '',
     cpfCnpj: '',
     postalCode: '',
+    address: '',
     addressNumber: '',
+    complement: '',
+    province: '',
+    city: '',
+    state: '',
     phone: ''
   });
 
@@ -133,37 +138,59 @@ function CheckoutContent() {
 
   const createCustomerIfNeeded = async () => {
     try {
+      console.log('🔍 Verificando se cliente existe para userId:', user.id);
+      
       // Verificar se cliente já existe
       const response = await fetch(`/api/payments/customers?userId=${user.id}`);
       const data = await response.json();
       
+      console.log('📋 Resposta da busca de cliente:', data);
+      
       if (data.customer) {
+        console.log('✅ Cliente já existe:', data.customer.asaas_customer_id);
         return data.customer;
       }
+
+      console.log('🆕 Cliente não existe, criando...');
+      
+      // Preparar dados do cliente
+      const customerData = {
+        userId: user.id,
+        name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente',
+        email: user.email,
+        phone: cardHolderInfo.phone || '',
+        cpfCnpj: cardHolderInfo.cpfCnpj || '',
+        postalCode: cardHolderInfo.postalCode || '',
+        address: cardHolderInfo.address || '',
+        addressNumber: cardHolderInfo.addressNumber || '',
+        complement: cardHolderInfo.complement || '',
+        province: cardHolderInfo.province || '',
+        city: cardHolderInfo.city || '',
+        state: cardHolderInfo.state || ''
+      };
+
+      console.log('📝 Dados do cliente para criação:', customerData);
 
       // Criar cliente se não existe
       const createResponse = await fetch('/api/payments/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.id,
-          name: user.user_metadata?.full_name || user.email,
-          email: user.email,
-          phone: cardHolderInfo.phone,
-          cpfCnpj: cardHolderInfo.cpfCnpj,
-          postalCode: cardHolderInfo.postalCode,
-          addressNumber: cardHolderInfo.addressNumber
-        })
+        body: JSON.stringify(customerData)
       });
 
       const createData = await createResponse.json();
+      
+      console.log('📋 Resposta da criação de cliente:', createData);
+      
       if (!createResponse.ok) {
-        throw new Error(createData.error);
+        console.error('❌ Erro ao criar cliente:', createData);
+        throw new Error(createData.error || 'Erro ao criar cliente');
       }
 
+      console.log('✅ Cliente criado com sucesso:', createData.customer.asaas_customer_id);
       return createData.customer;
     } catch (error) {
-      console.error('Erro ao criar/buscar cliente:', error);
+      console.error('❌ Erro ao criar/buscar cliente:', error);
       throw error;
     }
   };
