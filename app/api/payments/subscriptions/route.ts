@@ -12,7 +12,7 @@ const supabase = createClient(
 function mapPlanIdToApiFormat(planId: string): string {
   const upperPlanId = planId.toUpperCase();
   
-  // Mapeamento reverso: frontend ID → API ID
+  // Mapeamento reverso: frontend ID → API ID (enum subscription_plan_type)
   const reverseMap: Record<string, string> = {
     'FREE': 'FREE',
     'MICRO_BUSINESS': 'MICRO_EMPRESA',
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         .from('asaas_subscriptions')
         .insert({
           user_id: userId,
-          plan_type: 'free',
+          plan_type: 'FREE', // Usar valor do enum
           status: 'ACTIVE',
           value: 0,
           cycle: 'MONTHLY',
@@ -201,12 +201,12 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       asaas_subscription_id: mockAsaasSubscription.id,
       asaas_customer_id: customer.asaas_customer_id,
-      plan_type: planType,
+      plan_type: apiPlanType, // Usar valor mapeado para o enum
       status: 'ACTIVE',
       value: planValue,
       cycle,
       next_due_date: nextDueDate.toISOString().split('T')[0],
-      description: `Assinatura ${planType}`
+      description: `Assinatura ${apiPlanType}`
     };
 
     console.log('📋 Dados da assinatura para inserir:', subscriptionData);
