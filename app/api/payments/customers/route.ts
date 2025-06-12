@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import asaasService from '../../../lib/asaas';
+// import asaasService from '../../../lib/asaas'; // Temporariamente removido
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -78,60 +78,44 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ customer: existingCustomer });
     }
 
-    console.log('🔄 Cliente não existe, criando no Asaas...');
+    console.log('🔄 Cliente não existe, criando...');
 
-    // Verificar se já existe no Asaas pelo email
-    let asaasCustomer;
-    try {
-      asaasCustomer = await asaasService.getCustomerByEmail(email);
-      console.log('🔍 Cliente no Asaas por email:', asaasCustomer ? 'Encontrado' : 'Não encontrado');
-    } catch (error) {
-      console.log('⚠️ Erro ao buscar cliente por email (normal se não existir):', error);
-      asaasCustomer = null;
-    }
+    // MODO TEMPORÁRIO: Criar cliente mock sem usar Asaas
+    console.log('⚠️ MODO TEMPORÁRIO: Criando cliente mock sem Asaas');
+    
+    const mockAsaasCustomer = {
+      id: `cus_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      email,
+      phone: phone || null,
+      cpfCnpj: cpfCnpj || null,
+      postalCode: postalCode || null,
+      address: address || null,
+      addressNumber: addressNumber || null,
+      complement: complement || null,
+      province: province || null,
+      city: city || null,
+      state: state || null
+    };
 
-    if (!asaasCustomer) {
-      // Criar no Asaas
-      console.log('🆕 Criando cliente no Asaas...');
-      try {
-        asaasCustomer = await asaasService.createCustomer({
-          name,
-          email,
-          phone: phone || undefined,
-          cpfCnpj: cpfCnpj || undefined,
-          postalCode: postalCode || undefined,
-          address: address || undefined,
-          addressNumber: addressNumber || undefined,
-          complement: complement || undefined,
-          province: province || undefined,
-          city: city || undefined,
-          state: state || undefined
-        });
-        console.log('✅ Cliente criado no Asaas:', asaasCustomer.id);
-      } catch (asaasError) {
-        console.error('❌ Erro ao criar cliente no Asaas:', asaasError);
-        return NextResponse.json({ 
-          error: 'Erro ao criar cliente no gateway de pagamento' 
-        }, { status: 500 });
-      }
-    }
+    console.log('✅ Cliente mock criado:', mockAsaasCustomer.id);
 
     // Salvar no banco local
     console.log('💾 Salvando cliente no banco local...');
     const customerData = {
       user_id: userId,
-      asaas_customer_id: asaasCustomer.id,
-      name: asaasCustomer.name || name,
-      email: asaasCustomer.email || email,
-      phone: asaasCustomer.phone || phone || null,
-      cpf_cnpj: asaasCustomer.cpfCnpj || cpfCnpj || null,
-      postal_code: asaasCustomer.postalCode || postalCode || null,
-      address: asaasCustomer.address || address || null,
-      address_number: asaasCustomer.addressNumber || addressNumber || null,
-      complement: asaasCustomer.complement || complement || null,
-      province: asaasCustomer.province || province || null,
-      city: asaasCustomer.city || city || null,
-      state: asaasCustomer.state || state || null
+      asaas_customer_id: mockAsaasCustomer.id,
+      name: mockAsaasCustomer.name || name,
+      email: mockAsaasCustomer.email || email,
+      phone: mockAsaasCustomer.phone || phone || null,
+      cpf_cnpj: mockAsaasCustomer.cpfCnpj || cpfCnpj || null,
+      postal_code: mockAsaasCustomer.postalCode || postalCode || null,
+      address: mockAsaasCustomer.address || address || null,
+      address_number: mockAsaasCustomer.addressNumber || addressNumber || null,
+      complement: mockAsaasCustomer.complement || complement || null,
+      province: mockAsaasCustomer.province || province || null,
+      city: mockAsaasCustomer.city || city || null,
+      state: mockAsaasCustomer.state || state || null
     };
 
     console.log('📋 Dados para inserir:', customerData);
@@ -147,17 +131,23 @@ export async function POST(request: NextRequest) {
       console.error('📋 Dados que causaram erro:', customerData);
       return NextResponse.json({ 
         error: 'Erro ao salvar cliente no banco de dados',
-        details: error.message 
+        details: error.message,
+        supabaseError: error
       }, { status: 500 });
     }
 
     console.log('✅ Cliente salvo com sucesso:', customer.id);
-    return NextResponse.json({ customer });
+    return NextResponse.json({ 
+      customer,
+      warning: 'Cliente criado em modo temporário sem Asaas'
+    });
   } catch (error) {
     console.error('❌ Erro na API customers POST:', error);
+    console.error('❌ Stack trace completo:', error.stack);
     return NextResponse.json({ 
       error: 'Erro interno do servidor',
-      details: error instanceof Error ? error.message : 'Erro desconhecido'
+      details: error instanceof Error ? error.message : 'Erro desconhecido',
+      stack: error instanceof Error ? error.stack : undefined
     }, { status: 500 });
   }
 }

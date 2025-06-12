@@ -117,7 +117,7 @@ function CheckoutContent() {
     console.log('🎯 Plano da URL:', plan);
     
     if (plan) {
-      // Normalizar o ID do plano
+      // Normalizar o ID do plano para lowercase
       const normalizedPlan = plan.toLowerCase();
       console.log('📝 Plano normalizado:', normalizedPlan);
       
