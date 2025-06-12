@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://buscaaquibdc.com/sitemap.xml
+
+# Políticas específicas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /painel-anunciante/
+Disallow: /_next/
+Disallow: /test-*
+
+# Permitir páginas públicas importantes
+Allow: /
+Allow: /anuncios
+Allow: /categoria/
+Allow: /categorias
+Allow: /loja/
+Allow: /destaques/
+Allow: /classificados
+Allow: /ajuda/
+Allow: /contato
+Allow: /termos
+Allow: /privacidade
+
+# Crawl delay (opcional)
+Crawl-delay: 1 

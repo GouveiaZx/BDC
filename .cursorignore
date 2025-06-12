@@ -1,0 +1,6 @@
+# Arquivo atualizado para permitir acesso completo ao .env.local
+# O arquivo .env.local agora está totalmente acessível
+
+# Garantindo acesso explícito ao .env.local
+!.env.local
+!.env

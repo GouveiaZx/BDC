@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "routes": [
+    {
+      "src": "/(.*)",
+      "headers": { "cache-control": "no-cache, no-store, must-revalidate" },
+      "dest": "/$1"
+    }
+  ],
+  "github": {
+    "enabled": true,
+    "silent": false
+  },
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ]
+} 

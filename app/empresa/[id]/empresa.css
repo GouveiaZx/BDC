@@ -1,0 +1,83 @@
+/* Estilos para ocultar a barra de rolagem mas manter a funcionalidade */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Animação de fade-in para o modal */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Efeitos de hover para cards */
+.hover-lift {
+  transition: transform 0.2s ease-out;
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Estilo para o gradiente de texto (usado em badges de status) */
+.text-gradient {
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(to right, #3b82f6, #10b981);
+}
+
+/* Melhorias para dispositivos móveis */
+@media (max-width: 640px) {
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Animação de pulso para elementos de destaque */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s infinite ease-in-out;
+}
+
+/* Estilo para badges de verificação e status */
+.status-badge {
+  position: relative;
+  z-index: 1;
+}
+
+.status-badge::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: inherit;
+  filter: blur(8px);
+  opacity: 0.3;
+  z-index: -1;
+}
+
+/* Estilo para melhorar a acessibilidade de links focados */
+a:focus-visible, button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+} 
