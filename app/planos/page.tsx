@@ -46,7 +46,7 @@ export default function Planos() {
           const data = await response.json();
           console.log('Resposta da API de auth:', data);
           if (data.authenticated) {
-            setIsLoggedIn(true);
+          setIsLoggedIn(true);
             // Salvar no localStorage para próximas verificações
             localStorage.setItem('isLoggedIn', 'true');
             if (data.user?.id) {

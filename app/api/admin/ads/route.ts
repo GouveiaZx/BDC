@@ -161,18 +161,18 @@ export async function GET(request: NextRequest) {
       }
       
       const { data: adsTableData, error: adsError, count: adsCount } = await adsQuery
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-      
-      if (!adsError && adsTableData && adsTableData.length > 0) {
-        adsData = adsTableData;
-        totalCount = adsCount || 0;
-        console.log('(Ads API) ✅ Dados encontrados na tabela ads:', adsData.length);
-      } else {
-        console.log('(Ads API) Tabela ads não encontrou dados:', adsError?.message || 'Nenhum dado');
-      }
-    } catch (error) {
-      console.error('(Ads API) Erro ao buscar ads:', error);
+          .order('created_at', { ascending: false })
+          .range(offset, offset + limit - 1);
+        
+        if (!adsError && adsTableData && adsTableData.length > 0) {
+          adsData = adsTableData;
+          totalCount = adsCount || 0;
+          console.log('(Ads API) ✅ Dados encontrados na tabela ads:', adsData.length);
+        } else {
+          console.log('(Ads API) Tabela ads não encontrou dados:', adsError?.message || 'Nenhum dado');
+        }
+      } catch (error) {
+        console.error('(Ads API) Erro ao buscar ads:', error);
     }
     
     console.log('(Ads API) Total de anúncios encontrados:', adsData?.length || 0);

@@ -89,8 +89,8 @@ function CheckoutContent() {
           });
         } else {
           console.log('🔄 Verificando autenticação via Supabase...');
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
             console.log('❌ Usuário não autenticado, redirecionando para login');
             const currentUrl = window.location.pathname + window.location.search;
             router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);

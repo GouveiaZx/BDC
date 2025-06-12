@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
     // Determinar o plano do usuário (default: FREE)
     const userSubscription = userProfile?.subscription_plan || SubscriptionPlan.FREE;
     const isSubscriber = userSubscription !== SubscriptionPlan.FREE;
-
+    
     // Verificar se o usuário tem anúncio gratuito ativo
     const hasActiveFreeAd = freeAds && freeAds.length > 0;
     let freeAdDate: Date | null = null;
@@ -80,10 +80,10 @@ export async function GET(req: NextRequest) {
       default:
         availableAdSlots = 0; // Plano gratuito - apenas anúncio gratuito
     }
-
+    
     // Determinar se o usuário pode criar um anúncio gratuito
     const canCreateFreeAd = !hasActiveFreeAd || daysRemaining === 0;
-
+    
     return NextResponse.json({
       user: {
         id: userId,

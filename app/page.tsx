@@ -96,7 +96,7 @@ async function getRecentApprovedAds() {
     // Tentar função RPC primeiro
     try {
       const rpcResult = await adminClient
-        .rpc('get_recent_advertisements_with_user', { limit_count: 8 });
+      .rpc('get_recent_advertisements_with_user', { limit_count: 8 });
       ads = rpcResult.data;
       error = rpcResult.error;
     } catch (rpcError) {
@@ -148,26 +148,26 @@ async function getRecentApprovedAds() {
       }
       
       return {
-        id: ad.id,
-        title: ad.title,
-        description: ad.description,
-        price: ad.price,
-        category: ad.category,
-        subCategory: ad.sub_category,
-        images: ad.images || [],
-        location: ad.location,
-        zipCode: ad.zip_code,
-        city: ad.city,
-        state: ad.state,
-        isFeatured: ad.is_featured || false,
-        createdAt: ad.created_at,
-        views: ad.view_count || 0,
-        clicks: ad.contact_count || 0,
-        userId: ad.user_id,
+      id: ad.id,
+      title: ad.title,
+      description: ad.description,
+      price: ad.price,
+      category: ad.category,
+      subCategory: ad.sub_category,
+      images: ad.images || [],
+      location: ad.location,
+      zipCode: ad.zip_code,
+      city: ad.city,
+      state: ad.state,
+      isFeatured: ad.is_featured || false,
+      createdAt: ad.created_at,
+      views: ad.view_count || 0,
+      clicks: ad.contact_count || 0,
+      userId: ad.user_id,
         userName,
         userAvatar,
-        whatsapp: ad.whatsapp,
-        phone: ad.phone
+      whatsapp: ad.whatsapp,
+      phone: ad.phone
       };
     });
   } catch (error) {
