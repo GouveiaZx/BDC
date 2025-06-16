@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
           success: false,
           details: error instanceof Error ? error.message : 'Erro desconhecido'
         }, { status: 500 });
-      }
+    }
     }
 
     // Se busca por subscription ID
@@ -95,9 +95,9 @@ export async function GET(request: NextRequest) {
         
       } catch (error) {
         console.error('❌ Erro ao buscar pagamentos da assinatura:', error);
-        return NextResponse.json({ 
+    return NextResponse.json({ 
           error: 'Erro ao buscar pagamentos da assinatura',
-          success: false,
+      success: false, 
           details: error instanceof Error ? error.message : 'Erro desconhecido'
         }, { status: 500 });
       }
@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     console.error('❌ Erro na API /api/asaas/payments:', error);
     return NextResponse.json({ 
       error: 'Erro interno do servidor',
-      success: false,
+      success: false, 
       details: error instanceof Error ? error.message : 'Erro desconhecido'
     }, { status: 500 });
   }

@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     
     const nextDueDate = new Date();
     nextDueDate.setMonth(nextDueDate.getMonth() + (cycle === 'YEARLY' ? 12 : 1));
-    
+
     // Garantir que a data não seja no passado (adicionar pelo menos 1 dia)
     const now = new Date();
     if (nextDueDate <= now) {
@@ -208,12 +208,12 @@ export async function POST(request: NextRequest) {
     try {
       // Criar assinatura real no ASAAS
       console.log('🔄 Criando assinatura real no ASAAS...');
-      
+    
       const subscriptionData = {
         customer: customer.asaas_customer_id,
         billingType,
-        value: planValue,
-        nextDueDate: nextDueDate.toISOString().split('T')[0],
+      value: planValue,
+      nextDueDate: nextDueDate.toISOString().split('T')[0],
         cycle,
         description: `Assinatura ${apiPlanType} - BDC Classificados`,
         creditCard,
@@ -233,8 +233,8 @@ export async function POST(request: NextRequest) {
       console.log('✅ Assinatura criada no ASAAS:', asaasSubscription.id);
       console.log('📋 Resposta completa do ASAAS:', asaasSubscription);
 
-      // Salvar no banco local
-      console.log('💾 Salvando assinatura no banco local...');
+    // Salvar no banco local
+    console.log('💾 Salvando assinatura no banco local...');
       
       // Validar dados antes de inserir
       const validPlanTypes = ['FREE', 'MICRO_EMPRESA', 'PEQUENA_EMPRESA', 'EMPRESA_SIMPLES', 'EMPRESA_PLUS'];
@@ -245,16 +245,16 @@ export async function POST(request: NextRequest) {
       }
       
       const localSubscriptionData = {
-        user_id: userId,
+      user_id: userId,
         asaas_subscription_id: asaasSubscription.id,
-        asaas_customer_id: customer.asaas_customer_id,
-        plan_type: apiPlanType, // Usar valor mapeado para o enum
-        status: 'ACTIVE',
+      asaas_customer_id: customer.asaas_customer_id,
+      plan_type: apiPlanType, // Usar valor mapeado para o enum
+      status: 'ACTIVE',
         value: parseFloat(planValue.toString()), // Garantir que é número
-        cycle,
-        next_due_date: nextDueDate.toISOString().split('T')[0],
+      cycle,
+      next_due_date: nextDueDate.toISOString().split('T')[0],
         description: `Assinatura ${apiPlanType} - BDC Classificados`
-      };
+    };
 
       console.log('📋 Dados da assinatura para inserir no banco:', localSubscriptionData);
       console.log('🔍 Validações:');
@@ -266,14 +266,14 @@ export async function POST(request: NextRequest) {
       console.log('  - cycle:', cycle, typeof cycle);
       console.log('  - next_due_date:', nextDueDate.toISOString().split('T')[0]);
 
-      const { data: subscription, error } = await supabase
-        .from('asaas_subscriptions')
+    const { data: subscription, error } = await supabase
+      .from('asaas_subscriptions')
         .insert(localSubscriptionData)
-        .select()
-        .single();
+      .select()
+      .single();
 
-      if (error) {
-        console.error('❌ Erro ao salvar assinatura no banco:', error);
+    if (error) {
+      console.error('❌ Erro ao salvar assinatura no banco:', error);
         console.error('📋 Código do erro:', error.code);
         console.error('📋 Mensagem do erro:', error.message);
         console.error('📋 Detalhes do erro:', error.details);
@@ -296,7 +296,7 @@ export async function POST(request: NextRequest) {
             details: error.details
           }
         }, { status: 500 });
-      }
+    }
 
       console.log('✅ Assinatura salva com sucesso no banco:', subscription.id);
       
@@ -328,8 +328,8 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      return NextResponse.json({ 
-        subscription, 
+    return NextResponse.json({ 
+      subscription, 
         asaasSubscription,
         pixData,
         success: 'Assinatura criada com sucesso no ASAAS'

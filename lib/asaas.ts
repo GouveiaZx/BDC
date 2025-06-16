@@ -112,33 +112,33 @@ export class AsaasClient {
     });
 
     // Interceptor para log de requests - SEMPRE ATIVO para debug
-    this.client.interceptors.request.use(request => {
+      this.client.interceptors.request.use(request => {
       console.log('🔄 ASAAS Request:', {
-        method: request.method?.toUpperCase(),
-        url: request.url,
+          method: request.method?.toUpperCase(),
+          url: request.url,
         baseURL: request.baseURL,
         fullURL: `${request.baseURL}${request.url}`,
         headers: {
           'access_token': request.headers['access_token'] ? '[HIDDEN]' : 'NOT_SET',
           'Content-Type': request.headers['Content-Type']
         },
-        data: request.data
-      });
-      return request;
-    });
-
-    this.client.interceptors.response.use(
-      response => {
-        console.log('✅ ASAAS Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          data: response.data
+          data: request.data
         });
-        return response;
-      },
-      error => {
+        return request;
+      });
+
+      this.client.interceptors.response.use(
+        response => {
+        console.log('✅ ASAAS Response:', {
+            status: response.status,
+          statusText: response.statusText,
+            data: response.data
+          });
+          return response;
+        },
+        error => {
         console.error('❌ ASAAS Error:', {
-          status: error.response?.status,
+            status: error.response?.status,
           statusText: error.response?.statusText,
           message: error.message,
           data: error.response?.data,
@@ -148,10 +148,10 @@ export class AsaasClient {
             baseURL: error.config?.baseURL,
             fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A'
           }
-        });
-        return Promise.reject(error);
-      }
-    );
+          });
+          return Promise.reject(error);
+        }
+      );
   }
 
   // CUSTOMERS

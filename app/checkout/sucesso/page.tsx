@@ -72,7 +72,7 @@ function CheckoutSuccessContent() {
         } else {
           // Fallback para Supabase apenas se localStorage não tem dados
           console.log('🔄 Verificando via Supabase...');
-          const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await supabase.auth.getUser();
           if (user) {
             console.log('✅ Usuário encontrado via Supabase');
             setUser(user);
@@ -141,8 +141,8 @@ function CheckoutSuccessContent() {
           } catch (error) {
             console.error('❌ Erro ao buscar dados do pagamento:', error);
             // Fallback para dados básicos
-            setTransactionData({
-              id: asaasId,
+          setTransactionData({
+            id: asaasId,
               status: 'PENDING',
               amount: getPlantAmount(plan),
               method: method,
@@ -312,11 +312,11 @@ function CheckoutSuccessContent() {
                     />
                   </div>
                 ) : (
-                  <div className="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-2 flex items-center justify-center">
+                <div className="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-2 flex items-center justify-center">
                     <span className="text-gray-500 text-sm">
                       {transactionData ? 'QR Code não disponível' : 'Carregando QR Code...'}
                     </span>
-                  </div>
+                </div>
                 )}
                 <p className="text-sm text-gray-600">Escaneie com o app do seu banco</p>
               </div>
@@ -329,13 +329,13 @@ function CheckoutSuccessContent() {
                   {pixCode || transactionData?.pixTransaction?.qrCode?.payload || 'Carregando código PIX...'}
                 </div>
                 {(pixCode || transactionData?.pixTransaction?.qrCode?.payload) && (
-                  <button 
+                <button 
                     onClick={() => copyToClipboard(pixCode || transactionData?.pixTransaction?.qrCode?.payload)}
-                    className="flex items-center space-x-2 text-blue-600 hover:text-blue-700"
-                  >
-                    <Copy className="w-4 h-4" />
-                    <span>Copiar código PIX</span>
-                  </button>
+                  className="flex items-center space-x-2 text-blue-600 hover:text-blue-700"
+                >
+                  <Copy className="w-4 h-4" />
+                  <span>Copiar código PIX</span>
+                </button>
                 )}
               </div>
               

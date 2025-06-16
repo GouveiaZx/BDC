@@ -119,10 +119,10 @@ export async function POST(request: NextRequest) {
     try {
       // MODO REAL: Criar cliente real no ASAAS
       console.log('🔄 Criando cliente real no ASAAS...');
-      
+    
       const customerData = {
-        name,
-        email,
+      name,
+      email,
         phone: phone || undefined,
         cpfCnpj: cpfCnpj || undefined,
         postalCode: postalCode || undefined,
@@ -132,17 +132,17 @@ export async function POST(request: NextRequest) {
         province: province || undefined,
         city: city || undefined,
         state: state || undefined
-      };
+    };
 
       console.log('📋 Dados para criar cliente no ASAAS:', customerData);
 
       const asaasCustomer = await asaasService.createCustomer(customerData);
       console.log('✅ Cliente criado no ASAAS:', asaasCustomer.id);
 
-      // Salvar no banco local
-      console.log('💾 Salvando cliente no banco local...');
+    // Salvar no banco local
+    console.log('💾 Salvando cliente no banco local...');
       const localCustomerData = {
-        user_id: userId, // Usar o userId validado
+      user_id: userId, // Usar o userId validado
         asaas_customer_id: asaasCustomer.id,
         name: asaasCustomer.name || name,
         email: asaasCustomer.email || email,
@@ -155,32 +155,32 @@ export async function POST(request: NextRequest) {
         province: asaasCustomer.province || province || null,
         city: asaasCustomer.city || city || null,
         state: asaasCustomer.state || state || null
-      };
+    };
 
       console.log('📋 Dados para inserir no banco:', localCustomerData);
 
-      const { data: customer, error } = await supabase
-        .from('asaas_customers')
+    const { data: customer, error } = await supabase
+      .from('asaas_customers')
         .insert(localCustomerData)
-        .select()
-        .single();
+      .select()
+      .single();
 
-      if (error) {
-        console.error('❌ Erro ao salvar cliente no banco:', error);
+    if (error) {
+      console.error('❌ Erro ao salvar cliente no banco:', error);
         console.error('📋 Dados que causaram erro:', localCustomerData);
-        return NextResponse.json({ 
-          error: 'Erro ao salvar cliente no banco de dados',
-          details: error.message,
-          supabaseError: error
-        }, { status: 500 });
-      }
+      return NextResponse.json({ 
+        error: 'Erro ao salvar cliente no banco de dados',
+        details: error.message,
+        supabaseError: error
+      }, { status: 500 });
+    }
 
       console.log('✅ Cliente salvo com sucesso no banco:', customer.id);
-      return NextResponse.json({ 
-        customer,
+    return NextResponse.json({ 
+      customer,
         success: 'Cliente criado com sucesso no ASAAS',
-        processedUserId: userId // Retornar o userId processado para o frontend
-      });
+      processedUserId: userId // Retornar o userId processado para o frontend
+    });
 
     } catch (asaasError) {
       console.error('❌ Erro ao criar cliente no ASAAS:', asaasError);
