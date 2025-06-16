@@ -167,6 +167,13 @@ export default function Planos() {
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [currentPlanRenewalDate, setCurrentPlanRenewalDate] = useState('');
   
+  // Log do estado atual
+  console.log('🔍 [RENDER] Estado atual do componente:', {
+    viewType,
+    currentPlanId,
+    currentPlanRenewalDate
+  });
+  
   useEffect(() => {
     // Recupera o plano atual do usuário da API e do localStorage
     const fetchCurrentPlan = async () => {
@@ -262,12 +269,26 @@ export default function Planos() {
   
   // Verifica o tipo de mudança de plano (upgrade, downgrade ou plano atual)
   const getPlanChangeType = (planId: string) => {
-    if (planId === currentPlanId) return 'current';
+    console.log('🔍 [getPlanChangeType] Verificando:', { planId, currentPlanId });
+    
+    if (planId === currentPlanId) {
+      console.log('🔍 [getPlanChangeType] Resultado: current');
+      return 'current';
+    }
     
     const currentPlanIndex = plans.findIndex(p => p.id === currentPlanId);
     const newPlanIndex = plans.findIndex(p => p.id === planId);
     
-    return newPlanIndex > currentPlanIndex ? 'upgrade' : 'downgrade';
+    console.log('🔍 [getPlanChangeType] Índices:', { currentPlanIndex, newPlanIndex });
+    
+    if (currentPlanIndex === -1 || newPlanIndex === -1) {
+      console.log('🔍 [getPlanChangeType] Plano não encontrado, assumindo upgrade');
+      return 'upgrade'; // Assumir upgrade se não encontrar o plano
+    }
+    
+    const result = newPlanIndex > currentPlanIndex ? 'upgrade' : 'downgrade';
+    console.log('🔍 [getPlanChangeType] Resultado:', result);
+    return result;
   };
   
   const handleChangePlan = async (planId: string) => {
