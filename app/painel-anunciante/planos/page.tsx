@@ -166,6 +166,9 @@ function getFeatureValue(value: boolean | number | string) {
 }
 
 export default function Planos() {
+  // LOG IMEDIATO PARA VERIFICAR SE O CÓDIGO ESTÁ SENDO EXECUTADO
+  console.log('🔥 PÁGINA DE PLANOS CARREGADA - VERSÃO ATUALIZADA 16/01/2025 15:35');
+  
   const [viewType, setViewType] = useState('cards');
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
   const [currentPlanRenewalDate, setCurrentPlanRenewalDate] = useState('');
