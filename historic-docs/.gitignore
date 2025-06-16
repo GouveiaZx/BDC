@@ -1,0 +1,4 @@
+# Pasta de documentação histórica - não versionar
+*
+!.gitignore
+!README.md 
