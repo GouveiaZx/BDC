@@ -196,6 +196,14 @@ export async function POST(request: NextRequest) {
     
     const nextDueDate = new Date();
     nextDueDate.setMonth(nextDueDate.getMonth() + (cycle === 'YEARLY' ? 12 : 1));
+    
+    // Garantir que a data não seja no passado (adicionar pelo menos 1 dia)
+    const now = new Date();
+    if (nextDueDate <= now) {
+      nextDueDate.setDate(now.getDate() + 1);
+    }
+    
+    console.log('📅 Data de vencimento calculada:', nextDueDate.toISOString().split('T')[0]);
 
     try {
       // Criar assinatura real no ASAAS
@@ -213,9 +221,17 @@ export async function POST(request: NextRequest) {
       };
 
       console.log('📋 Dados para criar assinatura no ASAAS:', subscriptionData);
+      console.log('🔍 Validações dos dados:');
+      console.log('  - customer (ASAAS ID):', customer.asaas_customer_id, typeof customer.asaas_customer_id);
+      console.log('  - billingType:', billingType, typeof billingType);
+      console.log('  - value:', planValue, typeof planValue);
+      console.log('  - nextDueDate:', nextDueDate.toISOString().split('T')[0]);
+      console.log('  - cycle:', cycle, typeof cycle);
+      console.log('  - description:', `Assinatura ${apiPlanType} - BDC Classificados`);
 
       const asaasSubscription = await asaasService.createSubscription(subscriptionData);
       console.log('✅ Assinatura criada no ASAAS:', asaasSubscription.id);
+      console.log('📋 Resposta completa do ASAAS:', asaasSubscription);
 
       // Salvar no banco local
       console.log('💾 Salvando assinatura no banco local...');
@@ -291,9 +307,26 @@ export async function POST(request: NextRequest) {
 
     } catch (asaasError) {
       console.error('❌ Erro ao criar assinatura no ASAAS:', asaasError);
+      console.error('📋 Detalhes do erro ASAAS:');
+      console.error('  - Tipo:', typeof asaasError);
+      console.error('  - Message:', asaasError instanceof Error ? asaasError.message : 'N/A');
+      console.error('  - Stack:', asaasError instanceof Error ? asaasError.stack : 'N/A');
+      console.error('  - Dados completos:', asaasError);
+      
+      let errorMessage = 'Erro ao criar assinatura no ASAAS';
+      let errorDetails = 'Erro desconhecido';
+      
+      if (asaasError instanceof Error) {
+        errorMessage = asaasError.message;
+        errorDetails = asaasError.stack || asaasError.message;
+      } else if (typeof asaasError === 'object' && asaasError !== null) {
+        errorDetails = JSON.stringify(asaasError);
+      }
+      
       return NextResponse.json({ 
-        error: 'Erro ao criar assinatura no ASAAS',
-        details: asaasError instanceof Error ? asaasError.message : 'Erro desconhecido'
+        error: errorMessage,
+        details: errorDetails,
+        type: 'ASAAS_API_ERROR'
       }, { status: 500 });
     }
   } catch (error) {

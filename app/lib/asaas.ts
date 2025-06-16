@@ -125,7 +125,7 @@ class AsaasService {
     // Chave de API da Asaas configurada
     this.apiKey = process.env.ASAAS_API_KEY || "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmJkMTdjN2IwLWMxNWEtNDUyOC1hMmIyLWUwODRiOGQ1MzUwNzo6JGFhY2hfMjM1NWMzNGEtZTE1MS00OGYyLThjYzEtYzNhOTMzZjY5MTZh";
     // URL base da API do Asaas (API v3 atualizada)
-    this.baseUrl = process.env.ASAAS_API_URL || "https://www.asaas.com/api/v3";
+    this.baseUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3";
     
     // Detectar se está executando no cliente (browser)
     this.isClient = typeof window !== 'undefined';
