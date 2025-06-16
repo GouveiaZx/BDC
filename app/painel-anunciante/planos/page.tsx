@@ -271,6 +271,9 @@ export default function Planos() {
   };
   
   const handleChangePlan = async (planId: string) => {
+    // Teste simples para verificar se a função está sendo chamada
+    alert(`Função chamada com planId: ${planId}`);
+    
     console.log('🚀 [DEBUG] handleChangePlan chamada com planId:', planId);
     console.log('🚀 [DEBUG] currentPlanId atual:', currentPlanId);
     
