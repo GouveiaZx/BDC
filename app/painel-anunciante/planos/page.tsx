@@ -36,7 +36,7 @@ const plans = [
     id: 'micro_business',
     name: 'Micro-Empresa',
     tagline: 'Para microempreendedores',
-    price: 49.90,
+    price: 24.90,
     icon: <FaBriefcase className="text-blue-500" />,
     features: {
       anunciosAtivos: '4',
@@ -57,7 +57,7 @@ const plans = [
     id: 'small_business',
     name: 'Pequena Empresa',
     tagline: 'Para pequenos negócios',
-    price: 149.90,
+    price: 49.90,
     icon: <FaBriefcase className="text-green-500" />,
     popular: true,
     features: {
@@ -79,7 +79,7 @@ const plans = [
     id: 'business_simple',
     name: 'Empresa Simples',
     tagline: 'Para empresas',
-    price: 249.90,
+    price: 99.90,
     icon: <FaStar className="text-purple-500" />,
     features: {
       anunciosAtivos: '10',
@@ -100,7 +100,7 @@ const plans = [
     id: 'business_plus',
     name: 'Empresa Plus',
     tagline: 'Para grandes negócios',
-    price: 349.90,
+    price: 149.90,
     icon: <FaCrown className="text-yellow-500" />,
     recommended: true,
     features: {
@@ -286,16 +286,16 @@ export default function Planos() {
       }
     }
     
-    // Para os outros planos, seguir com o fluxo de upgrade/downgrade
+    // Para os outros planos, redirecionar para a página correta de checkout
     if (changeType === 'upgrade') {
       if (confirm(`Deseja fazer upgrade para o plano ${plan.name}? Você terá acesso imediato a mais recursos.`)) {
-        // Redirecionar para checkout
-        window.location.href = `/checkout?plan=${planId}`;
+        // Redirecionar para a página correta de checkout
+        window.location.href = `/painel-anunciante/planos/checkout?plan=${planId}`;
       }
     } else if (changeType === 'downgrade') {
       if (confirm(`Tem certeza que deseja fazer downgrade para o plano ${plan.name}? Alguns recursos serão perdidos.`)) {
-        // Redirecionar para checkout
-        window.location.href = `/checkout?plan=${planId}`;
+        // Redirecionar para a página correta de checkout
+        window.location.href = `/painel-anunciante/planos/checkout?plan=${planId}`;
       }
     } else {
       alert(`Você já está no plano ${plan.name}.`);
