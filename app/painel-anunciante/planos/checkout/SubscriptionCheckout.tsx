@@ -7,28 +7,13 @@ import { FaCheckCircle, FaCreditCard, FaSpinner, FaBarcode, FaQrcode, FaTimes, F
 import Link from 'next/link';
 import { calculateTrialEndDate, isEligibleForTrial } from '../../../lib/subscriptionHelper';
 import BusinessCategoriesSelector from './BusinessCategoriesSelector';
+import { useSupabase } from '../../../components/SupabaseProvider';
 
 interface SubscriptionCheckoutProps {
   planId: SubscriptionPlan;
   planName: string;
   planPrice: number;
   planFeatures: string[];
-}
-
-// Função para obter userId real da sessão
-function getCurrentUserId(): string {
-  // TODO: Implementar obtenção real do userId da sessão/auth
-  // Por enquanto, simular um userId para teste
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem('currentUserId');
-    if (stored) return stored;
-    
-    // Gerar um userId temporário para teste
-    const tempId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    localStorage.setItem('currentUserId', tempId);
-    return tempId;
-  }
-  return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export default function SubscriptionCheckout({ 
@@ -38,6 +23,7 @@ export default function SubscriptionCheckout({
   planFeatures 
 }: SubscriptionCheckoutProps) {
   const router = useRouter();
+  const { isAuthenticated, userId } = useSupabase();
   const [paymentMethod, setPaymentMethod] = useState<'credit' | 'boleto' | 'pix'>('pix');
   const [cardNumber, setCardNumber] = useState('');
   const [cardName, setCardName] = useState('');
@@ -58,12 +44,18 @@ export default function SubscriptionCheckout({
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   
   const isPaidPlan = planId !== SubscriptionPlan.FREE;
-  const currentUserId = getCurrentUserId();
   
   useEffect(() => {
+    // Verificar se usuário está autenticado
+    if (!isAuthenticated || !userId) {
+      console.log('❌ Usuário não autenticado, redirecionando para login');
+      router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
+      return;
+    }
+    
     // Verificar elegibilidade para trial
     const checkTrialEligibility = async () => {
-      const eligible = await isEligibleForTrial(currentUserId);
+      const eligible = await isEligibleForTrial(userId);
       setTrialEligible(eligible);
       
       if (eligible && planId) {
@@ -73,7 +65,7 @@ export default function SubscriptionCheckout({
     };
     
     checkTrialEligibility();
-  }, [planId, currentUserId]);
+  }, [planId, userId, isAuthenticated, router]);
 
   // Formatação de cartão de crédito
   const formatCardNumber = (value: string) => {
@@ -109,6 +101,11 @@ export default function SubscriptionCheckout({
     setPixPayload(null);
     setBoletoUrl(null);
     
+    if (!isAuthenticated || !userId) {
+      setError('Você precisa estar logado para fazer uma assinatura.');
+      return;
+    }
+    
     if (paymentMethod === 'credit') {
       if (!cardNumber || !cardName || !expiryDate || !cvv) {
         setError('Por favor, preencha todos os campos do cartão de crédito.');
@@ -127,9 +124,9 @@ export default function SubscriptionCheckout({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: currentUserId,
+          userId: userId,
           name: cardName || 'Cliente BDC',
-          email: `user${currentUserId}@buscaaquibdc.com`, // TODO: Obter email real do usuário
+          email: `user${userId}@buscaaquibdc.com`, // TODO: Obter email real do usuário
           phone: '99999999999', // TODO: Obter telefone real
           cpfCnpj: '00000000000', // TODO: Obter CPF real
         })
@@ -149,7 +146,7 @@ export default function SubscriptionCheckout({
                          paymentMethod === 'boleto' ? 'BOLETO' : 'PIX';
 
       const subscriptionPayload = {
-        userId: currentUserId,
+        userId: userId,
         planType: planId,
         billingType,
         cycle: 'MONTHLY',
@@ -162,7 +159,7 @@ export default function SubscriptionCheckout({
         } : undefined,
         creditCardHolderInfo: paymentMethod === 'credit' ? {
           name: cardName,
-          email: `user${currentUserId}@buscaaquibdc.com`,
+          email: `user${userId}@buscaaquibdc.com`,
           cpfCnpj: '00000000000',
           postalCode: '00000000',
           addressNumber: '123',
@@ -261,7 +258,7 @@ export default function SubscriptionCheckout({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: currentUserId,
+          userId: userId,
           categories
         })
       });

@@ -38,21 +38,14 @@ export function SupabaseProvider({
   // Função para verificar a sessão atual do usuário
   const checkSession = async (): Promise<boolean> => {
     try {
+      // Primeiro verificar sessão real do Supabase
       const { data, error } = await supabase.auth.getSession()
       
-      if (error) {
-        console.error('Erro ao verificar sessão:', error)
-        setIsAuthenticated(false)
-        setUserId(null)
-        return false
-      }
-      
-      const hasValidSession = !!data.session
-      setIsAuthenticated(hasValidSession)
-      
-      if (hasValidSession && data.session) {
+      if (!error && data.session) {
+        console.log('✅ Sessão real do Supabase encontrada')
         const uid = data.session.user.id
         setUserId(uid)
+        setIsAuthenticated(true)
         
         // Atualizar no localStorage para compatibilidade
         localStorage.setItem('userId', uid)
@@ -61,13 +54,45 @@ export function SupabaseProvider({
         
         // Verificar e renovar o token se necessário
         await checkAndRefreshSession(supabase)
-      } else {
-        setUserId(null)
+        return true
       }
       
-      return hasValidSession
+      // Se não há sessão real, verificar sessão customizada no localStorage
+      if (typeof window !== 'undefined') {
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+        const storedUserId = localStorage.getItem('userId')
+        const userEmail = localStorage.getItem('userEmail')
+        
+        if (isLoggedIn && storedUserId && userEmail) {
+          console.log('✅ Sessão customizada encontrada no localStorage')
+          setUserId(storedUserId)
+          setIsAuthenticated(true)
+          return true
+        }
+      }
+      
+      // Nenhuma sessão encontrada
+      console.log('❌ Nenhuma sessão válida encontrada')
+      setIsAuthenticated(false)
+      setUserId(null)
+      return false
+      
     } catch (e) {
       console.error('Erro ao verificar autenticação:', e)
+      
+      // Fallback: verificar localStorage mesmo com erro
+      if (typeof window !== 'undefined') {
+        const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true'
+        const storedUserId = localStorage.getItem('userId')
+        
+        if (isLoggedIn && storedUserId) {
+          console.log('⚠️ Usando sessão de fallback do localStorage')
+          setUserId(storedUserId)
+          setIsAuthenticated(true)
+          return true
+        }
+      }
+      
       setIsAuthenticated(false)
       setUserId(null)
       return false
@@ -116,6 +141,19 @@ export function SupabaseProvider({
           }
         })
 
+        // Configurar listener para mudanças no localStorage (para sessões customizadas)
+        const handleStorageChange = (e: StorageEvent) => {
+          if (e.key === 'isLoggedIn' || e.key === 'userId') {
+            console.log('Mudança detectada no localStorage:', e.key, e.newValue)
+            // Reverificar sessão quando localStorage muda
+            checkSession()
+          }
+        }
+        
+        if (typeof window !== 'undefined') {
+          window.addEventListener('storage', handleStorageChange)
+        }
+
         // Inicializar storage - continuar mesmo se falhar
         try {
         await initializeStorage()
@@ -152,6 +190,9 @@ export function SupabaseProvider({
         return () => {
           authListener?.subscription.unsubscribe()
           clearInterval(sessionCheckInterval)
+          if (typeof window !== 'undefined') {
+            window.removeEventListener('storage', handleStorageChange)
+          }
         }
       } catch (error) {
         console.error('Erro ao inicializar serviços do Supabase:', error)
