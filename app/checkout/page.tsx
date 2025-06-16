@@ -304,6 +304,17 @@ function CheckoutContent() {
         successParams.append('asaasId', data.asaasSubscription.id);
       }
 
+      // Passar dados PIX se disponíveis
+      if (data.pixData) {
+        successParams.append('pixPaymentId', data.pixData.paymentId);
+        if (data.pixData.qrCode?.payload) {
+          successParams.append('pixCode', data.pixData.qrCode.payload);
+        }
+        if (data.pixData.qrCode?.encodedImage) {
+          successParams.append('pixQrImage', data.pixData.qrCode.encodedImage);
+        }
+      }
+
       router.push(`/checkout/sucesso?${successParams.toString()}`);
 
     } catch (error: any) {

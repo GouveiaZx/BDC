@@ -32,28 +32,81 @@ function CheckoutSuccessContent() {
   const method = searchParams.get('method') || '';
   const subscriptionId = searchParams.get('subscriptionId') || '';
   const asaasId = searchParams.get('asaasId') || '';
+  const pixPaymentId = searchParams.get('pixPaymentId') || '';
+  const pixCode = searchParams.get('pixCode') || '';
+  const pixQrImage = searchParams.get('pixQrImage') || '';
 
   useEffect(() => {
     const checkUserAndLoadData = async () => {
       try {
-        // Verificar se usuário está logado
+        // Verificar localStorage primeiro para evitar redirecionamento desnecessário
+        const userFromStorage = localStorage.getItem('user-profile');
+        if (userFromStorage) {
+          try {
+            const parsedUser = JSON.parse(userFromStorage);
+            if (parsedUser.id) {
+              setUser(parsedUser);
+            }
+          } catch (e) {
+            console.log('Erro ao parsear usuário do localStorage:', e);
+          }
+        }
+        
+        // Verificar se usuário está logado (mas não redirecionar imediatamente)
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        if (user) {
+          setUser(user);
+        } else if (!userFromStorage) {
+          // Só redirecionar se não há nenhum usuário
+          console.log('Nenhum usuário encontrado, redirecionando para login...');
           router.push('/login');
           return;
         }
-        setUser(user);
 
         // Se há um asaasId, buscar informações da transação
         if (asaasId) {
-          // Simular busca da transação (você pode implementar uma API para isso)
-          setTransactionData({
-            id: asaasId,
-            status: 'PENDING',
-            amount: getPlantAmount(plan),
-            method: method,
-            createdAt: new Date().toISOString()
-          });
+          try {
+            // Buscar dados da transação via API
+            const response = await fetch(`/api/asaas/payments?subscriptionId=${asaasId}`);
+            if (response.ok) {
+              const paymentData = await response.json();
+              console.log('📋 Dados do pagamento recebidos:', paymentData);
+              
+              if (paymentData.success && paymentData.payments && paymentData.payments.length > 0) {
+                const payment = paymentData.payments[0];
+                setTransactionData({
+                  id: payment.id,
+                  status: payment.status,
+                  amount: payment.value,
+                  method: payment.billingType,
+                  pixTransaction: payment.pixTransaction,
+                  invoiceUrl: payment.invoiceUrl,
+                  createdAt: payment.dueDate
+                });
+              } else {
+                // Fallback para dados básicos
+                setTransactionData({
+                  id: asaasId,
+                  status: 'PENDING',
+                  amount: getPlantAmount(plan),
+                  method: method,
+                  createdAt: new Date().toISOString()
+                });
+              }
+            } else {
+              throw new Error('Falha ao buscar dados do pagamento');
+            }
+          } catch (error) {
+            console.error('Erro ao buscar dados do pagamento:', error);
+            // Fallback para dados básicos
+            setTransactionData({
+              id: asaasId,
+              status: 'PENDING',
+              amount: getPlantAmount(plan),
+              method: method,
+              createdAt: new Date().toISOString()
+            });
+          }
         }
       } catch (error) {
         console.error('Erro ao carregar dados:', error);
@@ -191,7 +244,7 @@ function CheckoutSuccessContent() {
       </div>
 
       {/* Informações de Pagamento PIX */}
-      {method === 'PIX' && transactionData && (
+      {method === 'PIX' && (pixCode || pixQrImage || transactionData) && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mt-8">
           <h3 className="font-semibold text-blue-800 mb-4">Informações do PIX</h3>
           
@@ -199,9 +252,21 @@ function CheckoutSuccessContent() {
             <div>
               <h4 className="font-medium mb-2">QR Code PIX</h4>
               <div className="bg-white border rounded-lg p-4 text-center">
-                <div className="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-2 flex items-center justify-center">
-                  <span className="text-gray-500 text-sm">QR Code</span>
-                </div>
+                {(pixQrImage || transactionData?.pixTransaction?.qrCode?.encodedImage) ? (
+                  <div className="w-48 h-48 mx-auto mb-2">
+                    <img 
+                      src={`data:image/png;base64,${pixQrImage || transactionData?.pixTransaction?.qrCode?.encodedImage}`} 
+                      alt="QR Code PIX" 
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-32 h-32 bg-gray-200 rounded-lg mx-auto mb-2 flex items-center justify-center">
+                    <span className="text-gray-500 text-sm">
+                      {transactionData ? 'QR Code não disponível' : 'Carregando QR Code...'}
+                    </span>
+                  </div>
+                )}
                 <p className="text-sm text-gray-600">Escaneie com o app do seu banco</p>
               </div>
             </div>
@@ -210,16 +275,41 @@ function CheckoutSuccessContent() {
               <h4 className="font-medium mb-2">Código PIX (Copia e Cola)</h4>
               <div className="bg-white border rounded-lg p-4">
                 <div className="bg-gray-100 p-3 rounded text-sm font-mono break-all mb-2">
-                  PIX_CODE_EXAMPLE_123456789
+                  {pixCode || transactionData?.pixTransaction?.qrCode?.payload || 'Carregando código PIX...'}
                 </div>
-                <button 
-                  onClick={() => copyToClipboard('PIX_CODE_EXAMPLE_123456789')}
-                  className="flex items-center space-x-2 text-blue-600 hover:text-blue-700"
-                >
-                  <Copy className="w-4 h-4" />
-                  <span>Copiar código PIX</span>
-                </button>
+                {(pixCode || transactionData?.pixTransaction?.qrCode?.payload) && (
+                  <button 
+                    onClick={() => copyToClipboard(pixCode || transactionData?.pixTransaction?.qrCode?.payload)}
+                    className="flex items-center space-x-2 text-blue-600 hover:text-blue-700"
+                  >
+                    <Copy className="w-4 h-4" />
+                    <span>Copiar código PIX</span>
+                  </button>
+                )}
               </div>
+              
+              {(pixPaymentId || transactionData?.id) && (
+                <div className="mt-4">
+                  <h4 className="font-medium mb-2">ID do Pagamento</h4>
+                  <div className="bg-white border rounded-lg p-3">
+                    <span className="text-sm font-mono">{pixPaymentId || transactionData?.id}</span>
+                  </div>
+                </div>
+              )}
+              
+              {transactionData?.invoiceUrl && (
+                <div className="mt-4">
+                  <a 
+                    href={transactionData.invoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-700"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Ver fatura completa</span>
+                  </a>
+                </div>
+              )}
             </div>
           </div>
           

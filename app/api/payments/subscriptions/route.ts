@@ -299,9 +299,39 @@ export async function POST(request: NextRequest) {
       }
 
       console.log('✅ Assinatura salva com sucesso no banco:', subscription.id);
+      
+      // Para PIX, buscar dados do primeiro pagamento gerado
+      let pixData = null;
+      if (billingType === 'PIX') {
+        try {
+          console.log('🔍 Buscando dados do pagamento PIX...');
+          const payments = await asaasService.getSubscriptionPayments(asaasSubscription.id);
+          console.log('📋 Pagamentos encontrados:', payments);
+          
+          if (payments && payments.length > 0) {
+            const firstPayment = payments[0];
+            console.log('💳 Primeiro pagamento:', firstPayment);
+            
+            if (firstPayment.pixTransaction) {
+              pixData = {
+                paymentId: firstPayment.id,
+                qrCode: firstPayment.pixTransaction.qrCode,
+                value: firstPayment.value,
+                dueDate: firstPayment.dueDate,
+                invoiceUrl: firstPayment.invoiceUrl
+              };
+              console.log('✅ Dados PIX extraídos:', pixData);
+            }
+          }
+        } catch (pixError) {
+          console.error('❌ Erro ao buscar dados PIX:', pixError);
+        }
+      }
+      
       return NextResponse.json({ 
         subscription, 
         asaasSubscription,
+        pixData,
         success: 'Assinatura criada com sucesso no ASAAS'
       });
 
