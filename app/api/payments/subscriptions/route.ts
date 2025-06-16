@@ -26,9 +26,18 @@ function mapPlanIdToApiFormat(planId: string): string {
 
 // Função para obter valor do plano usando a configuração centralizada
 function getPlanValue(planId: string): number {
+  console.log('🔍 getPlanValue chamada com planId:', planId);
+  
   const plan = getPlanById(planId);
+  console.log('📋 Plano encontrado:', plan ? {
+    id: plan.id,
+    name: plan.name,
+    monthlyPrice: plan.monthlyPrice
+  } : 'null');
+  
   if (!plan) {
     console.error('❌ Plano não encontrado:', planId);
+    console.log('📋 IDs de planos disponíveis:', PLANS_CONFIG.map(p => p.id));
     return 0;
   }
   
@@ -143,8 +152,8 @@ export async function POST(request: NextRequest) {
       planValue
     });
 
-    if (planValue === undefined && planType !== 'free') {
-      console.log('❌ Plano inválido:', planType);
+    if (planValue === 0 && planType !== 'free' && planType !== 'FREE') {
+      console.log('❌ Plano inválido ou valor zero:', planType);
       console.log('📋 Planos disponíveis:', PLANS_CONFIG.map(p => p.id));
       return NextResponse.json({ error: 'Plano inválido' }, { status: 400 });
     }
@@ -203,6 +212,15 @@ export async function POST(request: NextRequest) {
 
       // Salvar no banco local
       console.log('💾 Salvando assinatura no banco local...');
+      
+      // Validar dados antes de inserir
+      const validPlanTypes = ['FREE', 'MICRO_EMPRESA', 'PEQUENA_EMPRESA', 'EMPRESA_SIMPLES', 'EMPRESA_PLUS'];
+      if (!validPlanTypes.includes(apiPlanType)) {
+        console.error('❌ Tipo de plano inválido para o banco:', apiPlanType);
+        console.log('✅ Tipos válidos:', validPlanTypes);
+        return NextResponse.json({ error: 'Tipo de plano inválido' }, { status: 400 });
+      }
+      
       const localSubscriptionData = {
         user_id: userId,
         asaas_subscription_id: asaasSubscription.id,
@@ -216,6 +234,14 @@ export async function POST(request: NextRequest) {
       };
 
       console.log('📋 Dados da assinatura para inserir no banco:', localSubscriptionData);
+      console.log('🔍 Validações:');
+      console.log('  - userId:', userId, typeof userId);
+      console.log('  - asaas_subscription_id:', asaasSubscription.id, typeof asaasSubscription.id);
+      console.log('  - asaas_customer_id:', customer.asaas_customer_id, typeof customer.asaas_customer_id);
+      console.log('  - plan_type:', apiPlanType, typeof apiPlanType, 'válido:', validPlanTypes.includes(apiPlanType));
+      console.log('  - value:', planValue, typeof planValue);
+      console.log('  - cycle:', cycle, typeof cycle);
+      console.log('  - next_due_date:', nextDueDate.toISOString().split('T')[0]);
 
       const { data: subscription, error } = await supabase
         .from('asaas_subscriptions')
