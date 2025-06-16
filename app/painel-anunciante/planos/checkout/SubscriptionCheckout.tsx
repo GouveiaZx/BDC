@@ -15,6 +15,22 @@ interface SubscriptionCheckoutProps {
   planFeatures: string[];
 }
 
+// Função para obter userId real da sessão
+function getCurrentUserId(): string {
+  // TODO: Implementar obtenção real do userId da sessão/auth
+  // Por enquanto, simular um userId para teste
+  if (typeof window !== 'undefined') {
+    const stored = localStorage.getItem('currentUserId');
+    if (stored) return stored;
+    
+    // Gerar um userId temporário para teste
+    const tempId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('currentUserId', tempId);
+    return tempId;
+  }
+  return `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export default function SubscriptionCheckout({ 
   planId, 
   planName, 
@@ -22,7 +38,7 @@ export default function SubscriptionCheckout({
   planFeatures 
 }: SubscriptionCheckoutProps) {
   const router = useRouter();
-  const [paymentMethod, setPaymentMethod] = useState<'credit' | 'boleto' | 'pix'>('credit');
+  const [paymentMethod, setPaymentMethod] = useState<'credit' | 'boleto' | 'pix'>('pix');
   const [cardNumber, setCardNumber] = useState('');
   const [cardName, setCardName] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
@@ -36,14 +52,18 @@ export default function SubscriptionCheckout({
   const [showCategoriesSelector, setShowCategoriesSelector] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<BusinessCategory[]>([]);
   const [paymentProcessed, setPaymentProcessed] = useState(false);
+  const [pixQrCode, setPixQrCode] = useState<string | null>(null);
+  const [pixPayload, setPixPayload] = useState<string | null>(null);
+  const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
+  const [subscriptionData, setSubscriptionData] = useState<any>(null);
   
   const isPaidPlan = planId !== SubscriptionPlan.FREE;
+  const currentUserId = getCurrentUserId();
   
   useEffect(() => {
     // Verificar elegibilidade para trial
     const checkTrialEligibility = async () => {
-      const userId = "current-user-id";
-      const eligible = await isEligibleForTrial(userId);
+      const eligible = await isEligibleForTrial(currentUserId);
       setTrialEligible(eligible);
       
       if (eligible && planId) {
@@ -53,7 +73,7 @@ export default function SubscriptionCheckout({
     };
     
     checkTrialEligibility();
-  }, [planId]);
+  }, [planId, currentUserId]);
 
   // Formatação de cartão de crédito
   const formatCardNumber = (value: string) => {
@@ -85,6 +105,9 @@ export default function SubscriptionCheckout({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setPixQrCode(null);
+    setPixPayload(null);
+    setBoletoUrl(null);
     
     if (paymentMethod === 'credit') {
       if (!cardNumber || !cardName || !expiryDate || !cvv) {
@@ -96,45 +119,133 @@ export default function SubscriptionCheckout({
     setLoading(true);
     
     try {
-      // Simulação de processamento de pagamento
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('🚀 Iniciando criação de assinatura REAL no ASAAS...');
       
-      // Em um sistema real, você faria uma chamada à API aqui
-      /*
-      const response = await fetch('/api/subscriptions/create', {
+      // PASSO 1: Criar/verificar cliente no ASAAS
+      console.log('👤 Criando cliente no ASAAS...');
+      const customerResponse = await fetch('/api/payments/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId,
-          paymentMethod,
-          trial: trialEligible,
-          paymentDetails: paymentMethod === 'credit' ? {
-            cardNumber,
-            cardName,
-            expiryDate,
-            cvv,
-            saveCard
-          } : undefined
+          userId: currentUserId,
+          name: cardName || 'Cliente BDC',
+          email: `user${currentUserId}@buscaaquibdc.com`, // TODO: Obter email real do usuário
+          phone: '99999999999', // TODO: Obter telefone real
+          cpfCnpj: '00000000000', // TODO: Obter CPF real
         })
       });
-      
-      if (!response.ok) throw new Error('Falha ao processar pagamento');
-      */
-      
-      setPaymentProcessed(true);
-      
-      if (isPaidPlan) {
-        setShowCategoriesSelector(true);
-      } else {
-        setSuccess(true);
-        setTimeout(() => {
-          router.push('/painel-anunciante');
-        }, 3000);
+
+      if (!customerResponse.ok) {
+        const customerError = await customerResponse.json();
+        throw new Error(customerError.error || 'Erro ao criar cliente');
       }
+
+      const { customer } = await customerResponse.json();
+      console.log('✅ Cliente criado/encontrado:', customer.asaas_customer_id);
+
+      // PASSO 2: Criar assinatura REAL no ASAAS
+      console.log('💳 Criando assinatura REAL no ASAAS...');
+      const billingType = paymentMethod === 'credit' ? 'CREDIT_CARD' : 
+                         paymentMethod === 'boleto' ? 'BOLETO' : 'PIX';
+
+      const subscriptionPayload = {
+        userId: currentUserId,
+        planType: planId,
+        billingType,
+        cycle: 'MONTHLY',
+        creditCard: paymentMethod === 'credit' ? {
+          holderName: cardName,
+          number: cardNumber.replace(/\s/g, ''),
+          expiryMonth: expiryDate.split('/')[0],
+          expiryYear: '20' + expiryDate.split('/')[1],
+          ccv: cvv
+        } : undefined,
+        creditCardHolderInfo: paymentMethod === 'credit' ? {
+          name: cardName,
+          email: `user${currentUserId}@buscaaquibdc.com`,
+          cpfCnpj: '00000000000',
+          postalCode: '00000000',
+          addressNumber: '123',
+          phone: '99999999999'
+        } : undefined
+      };
+
+      console.log('📋 Payload da assinatura:', subscriptionPayload);
+
+      const subscriptionResponse = await fetch('/api/payments/subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subscriptionPayload)
+      });
+
+      if (!subscriptionResponse.ok) {
+        const subscriptionError = await subscriptionResponse.json();
+        console.error('❌ Erro na resposta da API:', subscriptionError);
+        throw new Error(subscriptionError.error || 'Erro ao criar assinatura');
+      }
+
+      const result = await subscriptionResponse.json();
+      console.log('✅ Assinatura criada com sucesso:', result);
       
+      setSubscriptionData(result.subscription);
+
+      // PASSO 3: Processar resposta baseada no método de pagamento
+      if (paymentMethod === 'pix') {
+        if (result.subscription.pix_qr_code || result.subscription.pix_payload) {
+          console.log('🔗 Dados PIX recebidos');
+          setPixQrCode(result.subscription.pix_qr_code);
+          setPixPayload(result.subscription.pix_payload);
+          setPaymentProcessed(true);
+        } else {
+          setError('Erro: QR Code PIX não foi gerado. Tente novamente.');
+          setLoading(false);
+          return;
+        }
+      } else if (paymentMethod === 'boleto') {
+        if (result.subscription.boleto_url) {
+          console.log('📄 URL do boleto recebida');
+          setBoletoUrl(result.subscription.boleto_url);
+          setPaymentProcessed(true);
+        } else {
+          setError('Erro: Boleto não foi gerado. Tente novamente.');
+          setLoading(false);
+          return;
+        }
+      } else if (paymentMethod === 'credit') {
+        console.log('💳 Pagamento com cartão processado');
+        
+        // Para cartão de crédito, verificar se foi aprovado
+        if (result.subscription.status === 'ACTIVE') {
+          setPaymentProcessed(true);
+          if (isPaidPlan) {
+            setShowCategoriesSelector(true);
+          } else {
+            setSuccess(true);
+            setTimeout(() => {
+              router.push('/painel-anunciante');
+            }, 3000);
+          }
+        } else {
+          setError('Pagamento não foi aprovado. Verifique os dados do cartão e tente novamente.');
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Plano gratuito
+        setPaymentProcessed(true);
+        if (isPaidPlan) {
+          setShowCategoriesSelector(true);
+        } else {
+          setSuccess(true);
+          setTimeout(() => {
+            router.push('/painel-anunciante');
+          }, 3000);
+        }
+      }
+
     } catch (e) {
-      setError('Ocorreu um erro ao processar o pagamento. Por favor, tente novamente.');
-      console.error('Erro:', e);
+      console.error('❌ Erro ao processar pagamento:', e);
+      setError(`Erro ao processar pagamento: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
       setLoading(false);
     }
   };
@@ -145,21 +256,20 @@ export default function SubscriptionCheckout({
     try {
       setSelectedCategories(categories);
       
-      // Em um sistema real, você salvaria as categorias no servidor
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      /*
+      // Salvar categorias no servidor
       const response = await fetch('/api/business/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: 'current-user-id',
+          userId: currentUserId,
           categories
         })
       });
       
-      if (!response.ok) throw new Error('Falha ao salvar categorias');
-      */
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Falha ao salvar categorias');
+      }
       
       setShowCategoriesSelector(false);
       setSuccess(true);
@@ -171,11 +281,149 @@ export default function SubscriptionCheckout({
       
     } catch (e) {
       console.error('Erro ao salvar categorias:', e);
-      setError('Ocorreu um erro ao salvar suas categorias. Por favor, tente novamente.');
+      setError(`Erro ao salvar categorias: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
     } finally {
       setLoading(false);
     }
   };
+
+  // Componente para exibir QR Code PIX
+  const PixPaymentStep = () => (
+    <div className="bg-white p-6 rounded-lg shadow-lg text-center">
+      <div className="mb-6">
+        <FaQrcode className="text-blue-600 text-6xl mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Pagamento via PIX</h2>
+        <p className="text-gray-600 mb-4">
+          Escaneie o QR Code abaixo ou copie o código PIX para realizar o pagamento
+        </p>
+        
+        <div className="bg-gray-50 p-6 rounded-lg mb-4">
+          {pixQrCode ? (
+            <div>
+              <div className="bg-white p-4 rounded-lg inline-block mb-4">
+                <img 
+                  src={`data:image/png;base64,${pixQrCode}`} 
+                  alt="QR Code PIX" 
+                  className="w-48 h-48 mx-auto"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  const textToCopy = pixPayload || pixQrCode || '';
+                  navigator.clipboard.writeText(textToCopy);
+                  alert('Código PIX copiado!');
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+              >
+                Copiar Código PIX
+              </button>
+            </div>
+          ) : (
+            <div className="animate-pulse">
+              <div className="bg-gray-300 w-48 h-48 mx-auto rounded-lg mb-4"></div>
+              <p className="text-gray-500">Gerando QR Code...</p>
+            </div>
+          )}
+        </div>
+        
+        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
+          <FaInfoCircle className="text-yellow-600 inline mr-2" />
+          <span className="text-yellow-800 text-sm">
+            Após o pagamento, sua assinatura será ativada automaticamente em até 5 minutos.
+          </span>
+        </div>
+      </div>
+      
+      <div className="flex flex-col md:flex-row md:justify-between gap-4">
+        <button
+          onClick={() => {
+            setPaymentProcessed(false);
+            setPixQrCode(null);
+            setPixPayload(null);
+            setLoading(false);
+          }}
+          className="inline-flex items-center justify-center text-gray-600 hover:text-gray-800"
+        >
+          <FaArrowLeft className="mr-2" /> Voltar
+        </button>
+        
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+        >
+          Já Paguei - Verificar Status
+        </button>
+      </div>
+    </div>
+  );
+
+  // Componente para exibir Boleto
+  const BoletoPaymentStep = () => (
+    <div className="bg-white p-6 rounded-lg shadow-lg text-center">
+      <div className="mb-6">
+        <FaBarcode className="text-green-600 text-6xl mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Pagamento via Boleto</h2>
+        <p className="text-gray-600 mb-4">
+          Clique no botão abaixo para abrir seu boleto e realizar o pagamento
+        </p>
+        
+        {boletoUrl ? (
+          <div className="mb-4">
+            <a
+              href={boletoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 inline-block"
+            >
+              Abrir Boleto
+            </a>
+          </div>
+        ) : (
+          <div className="animate-pulse mb-4">
+            <div className="bg-gray-300 w-32 h-10 mx-auto rounded-lg"></div>
+            <p className="text-gray-500 mt-2">Gerando boleto...</p>
+          </div>
+        )}
+        
+        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
+          <FaInfoCircle className="text-yellow-600 inline mr-2" />
+          <span className="text-yellow-800 text-sm">
+            Após o pagamento, sua assinatura será ativada em até 3 dias úteis.
+          </span>
+        </div>
+      </div>
+      
+      <div className="flex flex-col md:flex-row md:justify-between gap-4">
+        <button
+          onClick={() => {
+            setPaymentProcessed(false);
+            setBoletoUrl(null);
+            setLoading(false);
+          }}
+          className="inline-flex items-center justify-center text-gray-600 hover:text-gray-800"
+        >
+          <FaArrowLeft className="mr-2" /> Voltar
+        </button>
+        
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+        >
+          Já Paguei - Verificar Status
+        </button>
+      </div>
+    </div>
+  );
+
+  // Se processando PIX, mostrar QR Code
+  if (paymentProcessed && paymentMethod === 'pix') {
+    return <PixPaymentStep />;
+  }
+
+  // Se processando Boleto, mostrar boleto
+  if (paymentProcessed && paymentMethod === 'boleto') {
+    return <BoletoPaymentStep />;
+  }
   
   if (showCategoriesSelector) {
     return (
@@ -199,17 +447,10 @@ export default function SubscriptionCheckout({
           </div>
         </div>
         
-        <button
-          onClick={() => setShowCategoriesSelector(true)}
-          className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-        >
-          Selecionar ramos de atividade
-        </button>
-        
         <BusinessCategoriesSelector
           onSave={handleSaveCategories}
           onCancel={() => {
-            // Se cancelar, pula a etapa e finaliza normalmente
+            // Se cancelar, finaliza sem salvar categorias
             setSuccess(true);
             setTimeout(() => {
               router.push('/painel-anunciante');
@@ -345,11 +586,11 @@ export default function SubscriptionCheckout({
             <div className="grid grid-cols-3 gap-4 mb-4">
               <button
                 type="button"
-                onClick={() => setPaymentMethod('credit')}
-                className={`p-4 rounded-lg border flex flex-col items-center justify-center transition-colors ${paymentMethod === 'credit' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                onClick={() => setPaymentMethod('pix')}
+                className={`p-4 rounded-lg border flex flex-col items-center justify-center transition-colors ${paymentMethod === 'pix' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
               >
-                <FaCreditCard className={`text-2xl mb-2 ${paymentMethod === 'credit' ? 'text-blue-500' : 'text-gray-500'}`} />
-                <span className={`text-sm font-medium ${paymentMethod === 'credit' ? 'text-blue-600' : 'text-gray-700'}`}>Cartão de Crédito</span>
+                <FaQrcode className={`text-2xl mb-2 ${paymentMethod === 'pix' ? 'text-blue-500' : 'text-gray-500'}`} />
+                <span className={`text-sm font-medium ${paymentMethod === 'pix' ? 'text-blue-600' : 'text-gray-700'}`}>PIX</span>
               </button>
               
               <button
@@ -360,14 +601,14 @@ export default function SubscriptionCheckout({
                 <FaBarcode className={`text-2xl mb-2 ${paymentMethod === 'boleto' ? 'text-blue-500' : 'text-gray-500'}`} />
                 <span className={`text-sm font-medium ${paymentMethod === 'boleto' ? 'text-blue-600' : 'text-gray-700'}`}>Boleto</span>
               </button>
-              
+
               <button
                 type="button"
-                onClick={() => setPaymentMethod('pix')}
-                className={`p-4 rounded-lg border flex flex-col items-center justify-center transition-colors ${paymentMethod === 'pix' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                onClick={() => setPaymentMethod('credit')}
+                className={`p-4 rounded-lg border flex flex-col items-center justify-center transition-colors ${paymentMethod === 'credit' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
               >
-                <FaQrcode className={`text-2xl mb-2 ${paymentMethod === 'pix' ? 'text-blue-500' : 'text-gray-500'}`} />
-                <span className={`text-sm font-medium ${paymentMethod === 'pix' ? 'text-blue-600' : 'text-gray-700'}`}>PIX</span>
+                <FaCreditCard className={`text-2xl mb-2 ${paymentMethod === 'credit' ? 'text-blue-500' : 'text-gray-500'}`} />
+                <span className={`text-sm font-medium ${paymentMethod === 'credit' ? 'text-blue-600' : 'text-gray-700'}`}>Cartão de Crédito</span>
               </button>
             </div>
             
@@ -386,6 +627,7 @@ export default function SubscriptionCheckout({
                       onChange={handleCardNumberChange}
                       className="w-full py-2 px-10 border border-gray-300 rounded-md focus:ring focus:ring-blue-100 focus:outline-none focus:border-blue-500"
                       maxLength={19}
+                      required
                     />
                   </div>
                 </div>
@@ -398,6 +640,7 @@ export default function SubscriptionCheckout({
                     value={cardName}
                     onChange={(e) => setCardName(e.target.value.toUpperCase())}
                     className="w-full py-2 px-3 border border-gray-300 rounded-md focus:ring focus:ring-blue-100 focus:outline-none focus:border-blue-500"
+                    required
                   />
                 </div>
                 
@@ -411,6 +654,7 @@ export default function SubscriptionCheckout({
                       onChange={handleExpiryDateChange}
                       className="w-full py-2 px-3 border border-gray-300 rounded-md focus:ring focus:ring-blue-100 focus:outline-none focus:border-blue-500"
                       maxLength={5}
+                      required
                     />
                   </div>
                   
@@ -423,6 +667,7 @@ export default function SubscriptionCheckout({
                       onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
                       className="w-full py-2 px-3 border border-gray-300 rounded-md focus:ring focus:ring-blue-100 focus:outline-none focus:border-blue-500"
                       maxLength={3}
+                      required
                     />
                   </div>
                 </div>

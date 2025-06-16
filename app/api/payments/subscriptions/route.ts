@@ -1,65 +1,287 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import asaasService from '../../../lib/asaas';
-import { PLANS_CONFIG, getPlanById, PLAN_ID_MAP } from '../../../lib/plansConfig';
+import asaas from '../../../../lib/asaas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função para mapear ID do plano para o formato da API
-function mapPlanIdToApiFormat(planId: string): string {
-  console.log('🔄 Mapeando planId:', planId);
-  
-  // Mapeamento direto: frontend ID → database enum
-  const planMap: Record<string, string> = {
-    'free': 'FREE',
-    'FREE': 'FREE',
-    'micro_business': 'MICRO_EMPRESA',
-    'MICRO_BUSINESS': 'MICRO_EMPRESA',
-    'small_business': 'PEQUENA_EMPRESA',
-    'SMALL_BUSINESS': 'PEQUENA_EMPRESA', 
-    'business_simple': 'EMPRESA_SIMPLES',
-    'BUSINESS_SIMPLE': 'EMPRESA_SIMPLES',
-    'business_plus': 'EMPRESA_PLUS',
-    'BUSINESS_PLUS': 'EMPRESA_PLUS'
+interface SubscriptionPayload {
+  userId: string;
+  planType: string;
+  billingType: 'PIX' | 'BOLETO' | 'CREDIT_CARD';
+  cycle: 'MONTHLY' | 'YEARLY';
+  creditCard?: {
+    holderName: string;
+    number: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
   };
-  
-  const mappedValue = planMap[planId] || planId.toUpperCase();
-  console.log('✅ Plano mapeado:', planId, '→', mappedValue);
-  return mappedValue;
+  creditCardHolderInfo?: {
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    postalCode: string;
+    addressNumber: string;
+    phone: string;
+  };
 }
 
-// Função para obter valor do plano usando a configuração centralizada
-function getPlanValue(planId: string): number {
-  console.log('🔍 getPlanValue chamada com planId:', planId);
-  
-  const plan = getPlanById(planId);
-  console.log('📋 Plano encontrado:', plan ? {
-    id: plan.id,
-    name: plan.name,
-    monthlyPrice: plan.monthlyPrice
-  } : 'null');
-  
-  if (!plan) {
-    console.error('❌ Plano não encontrado:', planId);
-    console.log('📋 IDs de planos disponíveis:', PLANS_CONFIG.map(p => p.id));
-    return 0;
-  }
-  
-  console.log('✅ Plano encontrado:', plan.name, 'Valor:', plan.monthlyPrice);
-  return plan.monthlyPrice;
-}
-
-// Valores dos planos (mantido para compatibilidade, mas usando configuração centralizada)
-const PLAN_VALUES = {
-  'FREE': 0,
-  'MICRO_EMPRESA': 24.90,
-  'PEQUENA_EMPRESA': 49.90,
-  'EMPRESA_SIMPLES': 99.90,
-  'EMPRESA_PLUS': 149.90
+// Mapeamento de planos para valores REAIS (conforme plansConfig.ts)
+const planPrices: Record<string, number> = {
+  FREE: 0,
+  free: 0,
+  MICRO_EMPRESA: 24.90,
+  micro_business: 24.90,
+  PEQUENA_EMPRESA: 49.90,
+  small_business: 49.90,
+  EMPRESA_SIMPLES: 99.90,
+  business_simple: 99.90,
+  EMPRESA_PLUS: 149.90,
+  business_plus: 149.90
 };
+
+export async function POST(request: NextRequest) {
+  try {
+    const body: SubscriptionPayload = await request.json();
+    console.log('🚀 Iniciando criação de assinatura REAL:', body);
+
+    const { userId, planType, billingType, cycle, creditCard, creditCardHolderInfo } = body;
+
+    // Validações obrigatórias
+    if (!userId || !planType || !billingType) {
+      return NextResponse.json({ 
+        error: 'userId, planType e billingType são obrigatórios' 
+      }, { status: 400 });
+    }
+
+    // Verificar se é plano gratuito
+    if (planType === 'FREE') {
+      // Para planos gratuitos, apenas criar registro no banco
+      const subscriptionData = {
+        user_id: userId,
+        plan_type: planType,
+        status: 'ACTIVE',
+        value: 0,
+        cycle: cycle,
+        started_at: new Date().toISOString(),
+        next_due_date: null,
+        description: 'Plano Gratuito'
+      };
+
+      const { data: subscription, error } = await supabase
+        .from('asaas_subscriptions')
+        .insert(subscriptionData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Erro ao criar assinatura gratuita:', error);
+        return NextResponse.json({ error: 'Erro ao criar assinatura gratuita' }, { status: 500 });
+      }
+
+      console.log('✅ Plano gratuito ativado:', subscription);
+      return NextResponse.json({ 
+        success: true, 
+        subscription: {
+          ...subscription,
+          status: 'ACTIVE'
+        }
+      });
+    }
+
+    // Para planos pagos, verificar se existe cliente no ASAAS
+    const { data: existingCustomer } = await supabase
+      .from('asaas_customers')
+      .select('asaas_customer_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!existingCustomer?.asaas_customer_id) {
+      return NextResponse.json({ 
+        error: 'Cliente não encontrado. Crie o cliente primeiro.' 
+      }, { status: 400 });
+    }
+
+    const asaasCustomerId = existingCustomer.asaas_customer_id;
+    console.log('👤 Cliente ASAAS encontrado:', asaasCustomerId);
+
+    // Obter valor do plano
+    const planValue = planPrices[planType];
+    if (planValue === undefined) {
+      return NextResponse.json({ 
+        error: 'Plano inválido' 
+      }, { status: 400 });
+    }
+
+    console.log('💰 Valor do plano:', planValue);
+
+    try {
+      // CRIAR ASSINATURA REAL NO ASAAS
+      console.log('📅 Criando assinatura recorrente no ASAAS...');
+      
+      // Calcular próxima data de vencimento
+      const nextDueDate = new Date();
+      if (cycle === 'YEARLY') {
+        nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+      } else {
+        nextDueDate.setMonth(nextDueDate.getMonth() + 1);
+      }
+
+      const subscriptionPayload = {
+        customer: asaasCustomerId,
+        billingType: billingType,
+        cycle: cycle,
+        value: planValue,
+        nextDueDate: asaas.formatDate(nextDueDate),
+        description: `Assinatura ${planType} - BuscaAquiBDC`,
+        externalReference: `subscription_${userId}_${Date.now()}`,
+        maxPayments: undefined, // Assinatura ilimitada
+        creditCard: creditCard ? {
+          holderName: creditCard.holderName,
+          number: creditCard.number,
+          expiryMonth: creditCard.expiryMonth,
+          expiryYear: creditCard.expiryYear,
+          ccv: creditCard.ccv
+        } : undefined,
+        creditCardHolderInfo: creditCardHolderInfo ? {
+          name: creditCardHolderInfo.name,
+          email: creditCardHolderInfo.email,
+          cpfCnpj: creditCardHolderInfo.cpfCnpj,
+          postalCode: creditCardHolderInfo.postalCode,
+          addressNumber: creditCardHolderInfo.addressNumber,
+          phone: creditCardHolderInfo.phone
+        } : undefined
+      };
+
+      console.log('📋 Payload para ASAAS:', { ...subscriptionPayload, creditCard: creditCard ? '***' : undefined });
+
+      const asaasSubscription = await asaas.createSubscription(subscriptionPayload);
+      console.log('✅ Assinatura criada no ASAAS:', asaasSubscription);
+
+      // Salvar assinatura no banco
+      const subscriptionData = {
+        user_id: userId,
+        asaas_subscription_id: asaasSubscription.id || '',
+        asaas_customer_id: asaasCustomerId,
+        plan_type: planType,
+        status: 'ACTIVE',
+        value: planValue,
+        cycle: cycle,
+        next_due_date: subscriptionPayload.nextDueDate,
+        description: `Assinatura ${planType}`,
+        started_at: new Date().toISOString()
+      };
+
+      const { data: subscription, error: dbError } = await supabase
+        .from('asaas_subscriptions')
+        .insert(subscriptionData)
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('❌ Erro ao salvar assinatura no banco:', dbError);
+        // Tentar cancelar a assinatura no ASAAS se houver erro no banco
+        try {
+          if (asaasSubscription.id) {
+            await asaas.cancelSubscription(asaasSubscription.id);
+          }
+        } catch (cancelError) {
+          console.error('❌ Erro ao cancelar assinatura no ASAAS:', cancelError);
+        }
+        return NextResponse.json({ error: 'Erro ao salvar assinatura' }, { status: 500 });
+      }
+
+      console.log('✅ Assinatura salva no banco:', subscription);
+
+      // Preparar resposta com dados específicos do método de pagamento
+      let responseData: any = {
+        success: true,
+        subscription: {
+          ...subscription,
+          asaas_subscription_id: asaasSubscription.id,
+          status: 'ACTIVE'
+        }
+      };
+
+      // Buscar primeiro pagamento da assinatura para dados PIX/Boleto
+      try {
+        if (asaasSubscription.id) {
+          const payments = await asaas.getSubscriptionPayments(asaasSubscription.id);
+          
+          if (payments && payments.length > 0) {
+            const firstPayment = payments[0];
+            console.log('💳 Primeira cobrança criada:', firstPayment);
+
+            // Adicionar dados específicos por tipo de pagamento
+                         if (billingType === 'PIX') {
+               // Buscar QR Code PIX se disponível
+               try {
+                 const pixData = await asaas.getPixQrCode(firstPayment.id);
+                 responseData.subscription.pix_qr_code = (pixData as any).encodedImage;
+                 responseData.subscription.pix_payload = (pixData as any).payload;
+                 console.log('🔗 QR Code PIX adicionado à resposta');
+               } catch (pixError) {
+                 console.error('⚠️ Erro ao buscar QR Code PIX:', pixError);
+               }
+            } else if (billingType === 'BOLETO' && firstPayment.bankSlipUrl) {
+              responseData.subscription.boleto_url = firstPayment.bankSlipUrl;
+              console.log('📄 URL do boleto adicionada à resposta');
+            }
+
+            // Salvar primeira transação no banco
+            try {
+              const transactionData = {
+                user_id: userId,
+                subscription_id: subscription.id,
+                asaas_payment_id: firstPayment.id,
+                asaas_customer_id: asaasCustomerId,
+                type: 'SUBSCRIPTION_PAYMENT',
+                status: firstPayment.status || 'PENDING',
+                amount: firstPayment.value || planValue,
+                billing_type: billingType,
+                due_date: firstPayment.dueDate,
+                description: `Primeiro pagamento - ${planType}`,
+                pix_qr_code: responseData.subscription.pix_payload || null,
+                pix_payload: responseData.subscription.pix_payload || null,
+                metadata: {
+                  asaas_subscription_id: asaasSubscription.id,
+                  plan_type: planType
+                }
+              };
+
+              await supabase
+                .from('transactions')
+                .insert(transactionData);
+
+              console.log('✅ Primeira transação salva no banco');
+            } catch (transactionError) {
+              console.error('⚠️ Erro ao salvar transação (não crítico):', transactionError);
+            }
+          }
+        }
+      } catch (paymentsError) {
+        console.error('⚠️ Erro ao buscar pagamentos da assinatura (não crítico):', paymentsError);
+      }
+
+      return NextResponse.json(responseData);
+
+    } catch (asaasError) {
+      console.error('❌ Erro na API do ASAAS:', asaasError);
+      return NextResponse.json({ 
+        error: `Erro ao criar assinatura no ASAAS: ${asaasError instanceof Error ? asaasError.message : 'Erro desconhecido'}` 
+      }, { status: 500 });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro geral na API:', error);
+    return NextResponse.json({ 
+      error: `Erro interno: ${error instanceof Error ? error.message : 'Erro desconhecido'}` 
+    }, { status: 500 });
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,371 +292,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
     }
 
-    console.log('🔍 Buscando assinatura para userId:', userId);
+    console.log('🔍 Buscando assinaturas para userId:', userId);
 
-    // Buscar assinatura ativa do usuário
-    const { data: subscription, error } = await supabase
+    // Buscar assinaturas ativas do usuário
+    const { data: subscriptions, error } = await supabase
       .from('asaas_subscriptions')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'ACTIVE')
-      .single();
-
-    if (error && error.code !== 'PGRST116') {
-      console.error('❌ Erro ao buscar assinatura:', error);
-      return NextResponse.json({ error: 'Erro ao buscar assinatura' }, { status: 500 });
-    }
-
-    console.log('📋 Assinatura encontrada:', subscription ? 'Sim' : 'Não');
-    return NextResponse.json({ subscription: subscription || null });
-  } catch (error) {
-    console.error('❌ Erro na API subscriptions GET:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    console.log('📝 Dados recebidos para criar assinatura:', body);
-    
-    const {
-      userId,
-      planType,
-      billingType = 'PIX',
-      cycle = 'MONTHLY',
-      creditCard,
-      creditCardHolderInfo
-    } = body;
-
-    if (!userId || !planType) {
-      console.log('❌ Dados obrigatórios faltando:', { userId, planType });
-      return NextResponse.json({ 
-        error: 'userId e planType são obrigatórios' 
-      }, { status: 400 });
-    }
-
-    console.log('🔍 Processando plano:', planType);
-
-    // Verificar se o usuário já tem uma assinatura ativa
-    console.log('🔄 Verificando assinatura existente...');
-    const { data: existingSubscription } = await supabase
-      .from('asaas_subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'ACTIVE')
-      .single();
-
-    if (existingSubscription) {
-      console.log('⚠️ Usuário já possui assinatura ativa:', existingSubscription.plan_type);
-      return NextResponse.json({ 
-        error: 'Usuário já possui uma assinatura ativa' 
-      }, { status: 400 });
-    }
-
-    // Buscar cliente Asaas
-    console.log('🔍 Buscando cliente Asaas...');
-    const { data: customer } = await supabase
-      .from('asaas_customers')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (!customer) {
-      console.log('❌ Cliente não encontrado para userId:', userId);
-      return NextResponse.json({ 
-        error: 'Cliente não encontrado. Crie um cliente primeiro.' 
-      }, { status: 400 });
-    }
-
-    console.log('✅ Cliente encontrado:', customer.asaas_customer_id);
-
-    // Obter valor do plano usando configuração centralizada
-    const planValue = getPlanValue(planType);
-    const apiPlanType = mapPlanIdToApiFormat(planType);
-    
-    console.log('💰 Detalhes do plano:', {
-      planType,
-      apiPlanType,
-      planValue
-    });
-
-    if (planValue === 0 && planType !== 'free' && planType !== 'FREE') {
-      console.log('❌ Plano inválido ou valor zero:', planType);
-      console.log('📋 Planos disponíveis:', PLANS_CONFIG.map(p => p.id));
-      return NextResponse.json({ error: 'Plano inválido' }, { status: 400 });
-    }
-
-    // Se for plano gratuito, criar apenas no banco local
-    if (planType === 'free' || planType === 'FREE') {
-      console.log('🆓 Criando assinatura gratuita...');
-      const { data: subscription, error } = await supabase
-        .from('asaas_subscriptions')
-        .insert({
-          user_id: userId,
-          plan_type: 'FREE', // Usar valor do enum
-          status: 'ACTIVE',
-          value: 0,
-          cycle: 'MONTHLY',
-          description: 'Plano Gratuito',
-          expires_at: '2099-12-31'
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('❌ Erro ao criar assinatura gratuita:', error);
-        return NextResponse.json({ error: 'Erro ao criar assinatura' }, { status: 500 });
-      }
-
-      console.log('✅ Assinatura gratuita criada:', subscription.id);
-      return NextResponse.json({ subscription });
-    }
-
-    // MODO REAL: Para planos pagos, criar assinatura real no ASAAS
-    console.log('💳 Criando assinatura paga no ASAAS...');
-    
-    const nextDueDate = new Date();
-    nextDueDate.setMonth(nextDueDate.getMonth() + (cycle === 'YEARLY' ? 12 : 1));
-
-    // Garantir que a data não seja no passado (adicionar pelo menos 1 dia)
-    const now = new Date();
-    if (nextDueDate <= now) {
-      nextDueDate.setDate(now.getDate() + 1);
-    }
-    
-    console.log('📅 Data de vencimento calculada:', nextDueDate.toISOString().split('T')[0]);
-
-    try {
-      // Criar assinatura real no ASAAS
-      console.log('🔄 Criando assinatura real no ASAAS...');
-    
-      const subscriptionData = {
-        customer: customer.asaas_customer_id,
-        billingType,
-      value: planValue,
-      nextDueDate: nextDueDate.toISOString().split('T')[0],
-        cycle,
-        description: `Assinatura ${apiPlanType} - BDC Classificados`,
-        creditCard,
-        creditCardHolderInfo
-      };
-
-      console.log('📋 Dados para criar assinatura no ASAAS:', subscriptionData);
-      console.log('🔍 Validações dos dados:');
-      console.log('  - customer (ASAAS ID):', customer.asaas_customer_id, typeof customer.asaas_customer_id);
-      console.log('  - billingType:', billingType, typeof billingType);
-      console.log('  - value:', planValue, typeof planValue);
-      console.log('  - nextDueDate:', nextDueDate.toISOString().split('T')[0]);
-      console.log('  - cycle:', cycle, typeof cycle);
-      console.log('  - description:', `Assinatura ${apiPlanType} - BDC Classificados`);
-
-      const asaasSubscription = await asaasService.createSubscription(subscriptionData);
-      console.log('✅ Assinatura criada no ASAAS:', asaasSubscription.id);
-      console.log('📋 Resposta completa do ASAAS:', asaasSubscription);
-
-    // Salvar no banco local
-    console.log('💾 Salvando assinatura no banco local...');
-      
-      // Validar dados antes de inserir
-      const validPlanTypes = ['FREE', 'MICRO_EMPRESA', 'PEQUENA_EMPRESA', 'EMPRESA_SIMPLES', 'EMPRESA_PLUS'];
-      if (!validPlanTypes.includes(apiPlanType)) {
-        console.error('❌ Tipo de plano inválido para o banco:', apiPlanType);
-        console.log('✅ Tipos válidos:', validPlanTypes);
-        return NextResponse.json({ error: 'Tipo de plano inválido' }, { status: 400 });
-      }
-      
-      const localSubscriptionData = {
-      user_id: userId,
-        asaas_subscription_id: asaasSubscription.id,
-      asaas_customer_id: customer.asaas_customer_id,
-      plan_type: apiPlanType, // Usar valor mapeado para o enum
-      status: 'ACTIVE',
-        value: parseFloat(planValue.toString()), // Garantir que é número
-      cycle,
-      next_due_date: nextDueDate.toISOString().split('T')[0],
-        description: `Assinatura ${apiPlanType} - BDC Classificados`
-    };
-
-      console.log('📋 Dados da assinatura para inserir no banco:', localSubscriptionData);
-      console.log('🔍 Validações:');
-      console.log('  - userId:', userId, typeof userId, 'válido UUID:', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId));
-      console.log('  - asaas_subscription_id:', asaasSubscription.id, typeof asaasSubscription.id);
-      console.log('  - asaas_customer_id:', customer.asaas_customer_id, typeof customer.asaas_customer_id);
-      console.log('  - plan_type:', apiPlanType, typeof apiPlanType, 'válido:', validPlanTypes.includes(apiPlanType));
-      console.log('  - value:', planValue, typeof planValue, 'parseado:', parseFloat(planValue.toString()));
-      console.log('  - cycle:', cycle, typeof cycle);
-      console.log('  - next_due_date:', nextDueDate.toISOString().split('T')[0]);
-
-    const { data: subscription, error } = await supabase
-      .from('asaas_subscriptions')
-        .insert(localSubscriptionData)
-      .select()
-      .single();
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Erro ao salvar assinatura no banco:', error);
-        console.error('📋 Código do erro:', error.code);
-        console.error('📋 Mensagem do erro:', error.message);
-        console.error('📋 Detalhes do erro:', error.details);
-        console.error('📋 Dados que causaram erro:', localSubscriptionData);
-        
-        // Tentar cancelar a assinatura no ASAAS se falhou ao salvar no banco
-        try {
-          console.log('🔄 Tentando cancelar assinatura no ASAAS devido ao erro...');
-          await asaasService.cancelSubscription(asaasSubscription.id);
-          console.log('✅ Assinatura cancelada no ASAAS');
-        } catch (cancelError) {
-          console.error('❌ Erro ao cancelar assinatura no ASAAS:', cancelError);
-        }
-        
-        return NextResponse.json({ 
-          error: 'Erro ao salvar assinatura',
-          details: {
-            code: error.code,
-            message: error.message,
-            details: error.details
-          }
-        }, { status: 500 });
+      console.error('❌ Erro ao buscar assinaturas:', error);
+      return NextResponse.json({ error: 'Erro ao buscar assinaturas' }, { status: 500 });
     }
 
-      console.log('✅ Assinatura salva com sucesso no banco:', subscription.id);
-      
-      // Para PIX, buscar dados do primeiro pagamento gerado
-      let pixData = null;
-      if (billingType === 'PIX') {
-        try {
-          console.log('🔍 Buscando dados do pagamento PIX...');
-          const payments = await asaasService.getSubscriptionPayments(asaasSubscription.id);
-          console.log('📋 Pagamentos encontrados:', payments);
-          
-          if (payments && payments.length > 0) {
-            const firstPayment = payments[0];
-            console.log('💳 Primeiro pagamento:', firstPayment);
-            
-            if (firstPayment.pixTransaction) {
-              pixData = {
-                paymentId: firstPayment.id,
-                qrCode: firstPayment.pixTransaction.qrCode,
-                value: firstPayment.value,
-                dueDate: firstPayment.dueDate,
-                invoiceUrl: firstPayment.invoiceUrl
-              };
-              console.log('✅ Dados PIX extraídos:', pixData);
-            }
-          }
-        } catch (pixError) {
-          console.error('❌ Erro ao buscar dados PIX:', pixError);
-        }
-      }
-      
+    console.log('✅ Assinaturas encontradas:', subscriptions?.length || 0);
     return NextResponse.json({ 
-      subscription, 
-        asaasSubscription,
-        pixData,
-        success: 'Assinatura criada com sucesso no ASAAS'
-      });
-
-    } catch (asaasError) {
-      console.error('❌ Erro ao criar assinatura no ASAAS:', asaasError);
-      console.error('📋 Detalhes do erro ASAAS:');
-      console.error('  - Tipo:', typeof asaasError);
-      console.error('  - Message:', asaasError instanceof Error ? asaasError.message : 'N/A');
-      console.error('  - Stack:', asaasError instanceof Error ? asaasError.stack : 'N/A');
-      console.error('  - Dados completos:', asaasError);
-      
-      let errorMessage = 'Erro ao criar assinatura no ASAAS';
-      let errorDetails = 'Erro desconhecido';
-      
-      if (asaasError instanceof Error) {
-        errorMessage = asaasError.message;
-        errorDetails = asaasError.stack || asaasError.message;
-      } else if (typeof asaasError === 'object' && asaasError !== null) {
-        errorDetails = JSON.stringify(asaasError);
-      }
-      
-      return NextResponse.json({ 
-        error: errorMessage,
-        details: errorDetails,
-        type: 'ASAAS_API_ERROR'
-      }, { status: 500 });
-    }
-  } catch (error) {
-    console.error('❌ Erro na API subscriptions POST:', error);
-    console.error('❌ Stack trace completo:', error.stack);
-    return NextResponse.json({ 
-      error: 'Erro interno do servidor',
-      details: error instanceof Error ? error.message : 'Erro desconhecido'
-    }, { status: 500 });
-  }
-}
-
-export async function DELETE(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
-    }
-
-    // Buscar assinatura ativa
-    const { data: subscription } = await supabase
-      .from('asaas_subscriptions')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('status', 'ACTIVE')
-      .single();
-
-    if (!subscription) {
-      return NextResponse.json({ error: 'Assinatura não encontrada' }, { status: 404 });
-    }
-
-    // Se tem ID do Asaas, cancelar lá também
-    if (subscription.asaas_subscription_id) {
-      await asaasService.cancelSubscription(subscription.asaas_subscription_id);
-    }
-
-    // Atualizar status no banco local
-    const { error } = await supabase
-      .from('asaas_subscriptions')
-      .update({
-        status: 'CANCELLED',
-        cancelled_at: new Date().toISOString()
-      })
-      .eq('id', subscription.id);
-
-    if (error) {
-      console.error('Erro ao cancelar assinatura:', error);
-      return NextResponse.json({ error: 'Erro ao cancelar assinatura' }, { status: 500 });
-    }
-
-    // Criar assinatura gratuita
-    const { data: freeSubscription, error: freeError } = await supabase
-      .from('asaas_subscriptions')
-      .insert({
-        user_id: userId,
-        plan_type: 'FREE',
-        status: 'ACTIVE',
-        value: 0,
-        cycle: 'MONTHLY',
-        description: 'Plano Gratuito - Downgrade',
-        expires_at: '2099-12-31'
-      })
-      .select()
-      .single();
-
-    if (freeError) {
-      console.error('Erro ao criar assinatura gratuita:', freeError);
-    }
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Assinatura cancelada com sucesso',
-      newSubscription: freeSubscription
+      subscriptions: subscriptions || [],
+      count: subscriptions?.length || 0
     });
+
   } catch (error) {
-    console.error('Erro na API subscriptions DELETE:', error);
+    console.error('❌ Erro na API GET subscriptions:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 } 

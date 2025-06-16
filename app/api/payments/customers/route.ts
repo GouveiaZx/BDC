@@ -1,56 +1,178 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import asaasService from '../../../lib/asaas';
+import asaas from '../../../../lib/asaas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Função para validar UUID
-function isValidUUID(uuid: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(uuid);
+interface CustomerData {
+  userId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  cpfCnpj?: string;
+  postalCode?: string;
+  address?: string;
+  addressNumber?: string;
+  complement?: string;
+  province?: string;
+  city?: string;
+  state?: string;
 }
 
-// Função para gerar UUID válido
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+export async function POST(request: NextRequest) {
+  try {
+    const body: CustomerData = await request.json();
+    console.log('🚀 Criando cliente REAL no ASAAS:', body);
 
-// Função para garantir userId válido
-function ensureValidUserId(userId: string): string {
-  if (!userId) {
-    console.log('⚠️ UserId vazio, gerando novo UUID');
-    return generateUUID();
+    const { userId, name, email, phone, cpfCnpj, postalCode, address, addressNumber, complement, province, city, state } = body;
+
+    // Validações obrigatórias
+    if (!userId || !name || !email) {
+      return NextResponse.json({ 
+        error: 'userId, name e email são obrigatórios' 
+      }, { status: 400 });
+    }
+
+    // Verificar se já existe cliente para este usuário
+    const { data: existingCustomer } = await supabase
+      .from('asaas_customers')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (existingCustomer) {
+      console.log('✅ Cliente já existe:', existingCustomer.asaas_customer_id);
+      return NextResponse.json({ 
+        success: true,
+        customer: existingCustomer,
+        message: 'Cliente já cadastrado'
+      });
+    }
+
+    // Preparar dados para o ASAAS
+    const asaasCustomerData = {
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      phone: phone?.replace(/\D/g, '') || undefined,
+      mobilePhone: phone?.replace(/\D/g, '') || undefined,
+      cpfCnpj: cpfCnpj?.replace(/\D/g, '') || undefined,
+      postalCode: postalCode?.replace(/\D/g, '') || undefined,
+      address: address?.trim() || undefined,
+      addressNumber: addressNumber?.trim() || undefined,
+      complement: complement?.trim() || undefined,
+      province: province?.trim() || undefined,
+      city: city?.trim() || undefined,
+      state: state?.trim() || undefined,
+      country: 'Brasil',
+      externalReference: `user_${userId}`,
+      notificationDisabled: false
+    };
+
+    // Remover campos undefined para não enviar dados vazios
+    Object.keys(asaasCustomerData).forEach(key => {
+      if ((asaasCustomerData as any)[key] === undefined) {
+        delete (asaasCustomerData as any)[key];
+      }
+    });
+
+    console.log('📋 Dados formatados para ASAAS:', asaasCustomerData);
+
+    try {
+      // CRIAR CLIENTE REAL NO ASAAS
+      console.log('👤 Criando cliente no ASAAS...');
+      const asaasCustomer = await asaas.createCustomer(asaasCustomerData);
+      console.log('✅ Cliente criado no ASAAS:', asaasCustomer);
+
+      if (!asaasCustomer.id) {
+        throw new Error('ASAAS não retornou ID do cliente');
+      }
+
+      // Salvar no banco de dados local
+      const customerData = {
+        user_id: userId,
+        asaas_customer_id: asaasCustomer.id,
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone?.replace(/\D/g, '') || null,
+        cpf_cnpj: cpfCnpj?.replace(/\D/g, '') || null,
+        postal_code: postalCode?.replace(/\D/g, '') || null,
+        address: address?.trim() || null,
+        address_number: addressNumber?.trim() || null,
+        complement: complement?.trim() || null,
+        province: province?.trim() || null,
+        city: city?.trim() || null,
+        state: state?.trim() || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('💾 Salvando cliente no banco de dados...');
+      const { data: customer, error: dbError } = await supabase
+        .from('asaas_customers')
+        .insert(customerData)
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('❌ Erro ao salvar cliente no banco:', dbError);
+        
+        // Tentar cancelar cliente no ASAAS se houve erro no banco
+        try {
+          // ASAAS não tem endpoint para deletar clientes, mas podemos tentar atualizar status
+          console.log('⚠️ Cliente criado no ASAAS mas não salvo no banco local');
+        } catch (cleanupError) {
+          console.error('❌ Erro ao fazer cleanup:', cleanupError);
+        }
+        
+        return NextResponse.json({ 
+          error: 'Erro ao salvar cliente no banco de dados',
+          details: dbError.message
+        }, { status: 500 });
+      }
+
+      console.log('✅ Cliente salvo no banco:', customer);
+
+      return NextResponse.json({ 
+        success: true,
+        customer: {
+          ...customer,
+          asaas_customer_id: asaasCustomer.id
+        },
+        asaasCustomer,
+        message: 'Cliente criado com sucesso'
+      });
+
+    } catch (asaasError) {
+      console.error('❌ Erro na API do ASAAS:', asaasError);
+      return NextResponse.json({ 
+        error: `Erro ao criar cliente no ASAAS: ${asaasError instanceof Error ? asaasError.message : 'Erro desconhecido'}`,
+        details: asaasError instanceof Error ? asaasError.stack : 'N/A'
+      }, { status: 500 });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro geral na API:', error);
+    return NextResponse.json({ 
+      error: `Erro interno: ${error instanceof Error ? error.message : 'Erro desconhecido'}` 
+    }, { status: 500 });
   }
-  
-  if (isValidUUID(userId)) {
-    console.log('✅ UserId é um UUID válido:', userId);
-    return userId;
-  }
-  
-  console.log('⚠️ UserId não é um UUID válido:', userId, 'gerando novo');
-  return generateUUID();
 }
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const rawUserId = searchParams.get('userId');
+    const userId = searchParams.get('userId');
 
-    if (!rawUserId) {
+    if (!userId) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
     }
 
-    const userId = ensureValidUserId(rawUserId);
     console.log('🔍 Buscando cliente para userId:', userId);
 
-    // Buscar cliente Asaas salvo no banco
+    // Buscar cliente no banco local
     const { data: customer, error } = await supabase
       .from('asaas_customers')
       .select('*')
@@ -62,212 +184,150 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Erro ao buscar cliente' }, { status: 500 });
     }
 
-    console.log('✅ Cliente encontrado:', customer ? 'Sim' : 'Não');
-    return NextResponse.json({ customer: customer || null });
-  } catch (error) {
-    console.error('❌ Erro na API customers GET:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    console.log('📝 Dados recebidos para criar cliente:', body);
-    
-    const {
-      userId: rawUserId,
-      name,
-      email,
-      phone,
-      cpfCnpj,
-      postalCode,
-      address,
-      addressNumber,
-      complement,
-      province,
-      city,
-      state
-    } = body;
-
-    if (!rawUserId || !name || !email) {
-      console.log('❌ Dados obrigatórios faltando:', { rawUserId, name, email });
+    if (!customer) {
+      console.log('❌ Cliente não encontrado para userId:', userId);
       return NextResponse.json({ 
-        error: 'userId, name e email são obrigatórios' 
-      }, { status: 400 });
+        customer: null,
+        exists: false,
+        message: 'Cliente não encontrado'
+      });
     }
 
-    // Garantir que userId seja um UUID válido
-    const userId = ensureValidUserId(rawUserId);
-    console.log('🔧 UserId processado:', { original: rawUserId, processed: userId });
+    console.log('✅ Cliente encontrado:', customer.asaas_customer_id);
 
-    // Verificar se o cliente já existe no banco
-    console.log('🔍 Verificando se cliente já existe...');
-    const { data: existingCustomer } = await supabase
-      .from('asaas_customers')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (existingCustomer) {
-      console.log('✅ Cliente já existe no banco:', existingCustomer.asaas_customer_id);
-      return NextResponse.json({ customer: existingCustomer });
-    }
-
-    console.log('🔄 Cliente não existe, criando...');
-
+    // Opcional: Verificar se cliente ainda existe no ASAAS
     try {
-      // MODO REAL: Criar cliente real no ASAAS
-      console.log('🔄 Criando cliente real no ASAAS...');
-    
-      const customerData = {
-      name,
-      email,
-        phone: phone || undefined,
-        cpfCnpj: cpfCnpj || undefined,
-        postalCode: postalCode || undefined,
-        address: address || undefined,
-        addressNumber: addressNumber || undefined,
-        complement: complement || undefined,
-        province: province || undefined,
-        city: city || undefined,
-        state: state || undefined
-    };
-
-      console.log('📋 Dados para criar cliente no ASAAS:', customerData);
-
-      const asaasCustomer = await asaasService.createCustomer(customerData);
-      console.log('✅ Cliente criado no ASAAS:', asaasCustomer.id);
-
-    // Salvar no banco local
-    console.log('💾 Salvando cliente no banco local...');
-      const localCustomerData = {
-      user_id: userId, // Usar o userId validado
-        asaas_customer_id: asaasCustomer.id,
-        name: asaasCustomer.name || name,
-        email: asaasCustomer.email || email,
-        phone: asaasCustomer.phone || phone || null,
-        cpf_cnpj: asaasCustomer.cpfCnpj || cpfCnpj || null,
-        postal_code: asaasCustomer.postalCode || postalCode || null,
-        address: asaasCustomer.address || address || null,
-        address_number: asaasCustomer.addressNumber || addressNumber || null,
-        complement: asaasCustomer.complement || complement || null,
-        province: asaasCustomer.province || province || null,
-        city: asaasCustomer.city || city || null,
-        state: asaasCustomer.state || state || null
-    };
-
-      console.log('📋 Dados para inserir no banco:', localCustomerData);
-
-    const { data: customer, error } = await supabase
-      .from('asaas_customers')
-        .insert(localCustomerData)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('❌ Erro ao salvar cliente no banco:', error);
-        console.error('📋 Dados que causaram erro:', localCustomerData);
+      const asaasCustomer = await asaas.getCustomer(customer.asaas_customer_id);
+      console.log('✅ Cliente confirmado no ASAAS');
+      
       return NextResponse.json({ 
-        error: 'Erro ao salvar cliente no banco de dados',
-        details: error.message,
-        supabaseError: error
-      }, { status: 500 });
-    }
-
-      console.log('✅ Cliente salvo com sucesso no banco:', customer.id);
-    return NextResponse.json({ 
-      customer,
-        success: 'Cliente criado com sucesso no ASAAS',
-      processedUserId: userId // Retornar o userId processado para o frontend
-    });
-
+        customer: {
+          ...customer,
+          asaas_data: asaasCustomer
+        },
+        exists: true,
+        message: 'Cliente encontrado'
+      });
     } catch (asaasError) {
-      console.error('❌ Erro ao criar cliente no ASAAS:', asaasError);
+      console.error('⚠️ Cliente existe no banco mas não no ASAAS:', asaasError);
+      
       return NextResponse.json({ 
-        error: 'Erro ao criar cliente no ASAAS',
-        details: asaasError instanceof Error ? asaasError.message : 'Erro desconhecido'
-      }, { status: 500 });
+        customer,
+        exists: true,
+        asaas_sync_error: true,
+        message: 'Cliente encontrado no banco mas pode estar dessincronizado com ASAAS'
+      });
     }
+
   } catch (error) {
-    console.error('❌ Erro na API customers POST:', error);
-    console.error('❌ Stack trace completo:', error.stack);
-    return NextResponse.json({ 
-      error: 'Erro interno do servidor',
-      details: error instanceof Error ? error.message : 'Erro desconhecido',
-      stack: error instanceof Error ? error.stack : undefined
-    }, { status: 500 });
+    console.error('❌ Erro na API GET customers:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const {
-      userId,
-      name,
-      email,
-      phone,
-      cpfCnpj,
-      postalCode,
-      address,
-      addressNumber,
-      complement,
-      province,
-      city,
-      state
-    } = body;
+    console.log('🔄 Atualizando cliente:', body);
+
+    const { userId, ...updateData } = body;
 
     if (!userId) {
       return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
     }
 
-    console.log('🔄 Atualizando cliente para userId:', userId);
-
     // Buscar cliente existente
-    const { data: existingCustomer, error: fetchError } = await supabase
+    const { data: existingCustomer } = await supabase
       .from('asaas_customers')
       .select('*')
       .eq('user_id', userId)
       .single();
 
-    if (fetchError) {
-      console.error('❌ Erro ao buscar cliente:', fetchError);
+    if (!existingCustomer) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
     }
 
-    // Atualizar no banco local
-    const updateData = {
-      name: name || existingCustomer.name,
-      email: email || existingCustomer.email,
-      phone: phone || existingCustomer.phone,
-      cpf_cnpj: cpfCnpj || existingCustomer.cpf_cnpj,
-      postal_code: postalCode || existingCustomer.postal_code,
-      address: address || existingCustomer.address,
-      address_number: addressNumber || existingCustomer.address_number,
-      complement: complement || existingCustomer.complement,
-      province: province || existingCustomer.province,
-      city: city || existingCustomer.city,
-      state: state || existingCustomer.state,
-      updated_at: new Date().toISOString()
+    // Preparar dados para atualização no ASAAS
+    const asaasUpdateData = {
+      name: updateData.name?.trim(),
+      email: updateData.email?.trim().toLowerCase(),
+      phone: updateData.phone?.replace(/\D/g, ''),
+      mobilePhone: updateData.phone?.replace(/\D/g, ''),
+      cpfCnpj: updateData.cpfCnpj?.replace(/\D/g, ''),
+      postalCode: updateData.postalCode?.replace(/\D/g, ''),
+      address: updateData.address?.trim(),
+      addressNumber: updateData.addressNumber?.trim(),
+      complement: updateData.complement?.trim(),
+      province: updateData.province?.trim(),
+      city: updateData.city?.trim(),
+      state: updateData.state?.trim()
     };
 
-    const { data: customer, error } = await supabase
-      .from('asaas_customers')
-      .update(updateData)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    // Remover campos undefined
+    Object.keys(asaasUpdateData).forEach(key => {
+      if ((asaasUpdateData as any)[key] === undefined) {
+        delete (asaasUpdateData as any)[key];
+      }
+    });
 
-    if (error) {
-      console.error('❌ Erro ao atualizar cliente:', error);
-      return NextResponse.json({ error: 'Erro ao atualizar cliente' }, { status: 500 });
+    try {
+      // Atualizar no ASAAS
+      const asaasCustomer = await asaas.updateCustomer(existingCustomer.asaas_customer_id, asaasUpdateData);
+      console.log('✅ Cliente atualizado no ASAAS');
+
+      // Atualizar no banco local
+      const localUpdateData = {
+        name: updateData.name?.trim(),
+        email: updateData.email?.trim().toLowerCase(),
+        phone: updateData.phone?.replace(/\D/g, ''),
+        cpf_cnpj: updateData.cpfCnpj?.replace(/\D/g, ''),
+        postal_code: updateData.postalCode?.replace(/\D/g, ''),
+        address: updateData.address?.trim(),
+        address_number: updateData.addressNumber?.trim(),
+        complement: updateData.complement?.trim(),
+        province: updateData.province?.trim(),
+        city: updateData.city?.trim(),
+        state: updateData.state?.trim(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Remover campos undefined
+      Object.keys(localUpdateData).forEach(key => {
+        if ((localUpdateData as any)[key] === undefined) {
+          delete (localUpdateData as any)[key];
+        }
+      });
+
+      const { data: updatedCustomer, error: dbError } = await supabase
+        .from('asaas_customers')
+        .update(localUpdateData)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('❌ Erro ao atualizar cliente no banco:', dbError);
+        return NextResponse.json({ error: 'Erro ao atualizar cliente no banco' }, { status: 500 });
+      }
+
+      console.log('✅ Cliente atualizado no banco');
+
+      return NextResponse.json({ 
+        success: true,
+        customer: updatedCustomer,
+        asaasCustomer,
+        message: 'Cliente atualizado com sucesso'
+      });
+
+    } catch (asaasError) {
+      console.error('❌ Erro ao atualizar cliente no ASAAS:', asaasError);
+      return NextResponse.json({ 
+        error: `Erro ao atualizar cliente no ASAAS: ${asaasError instanceof Error ? asaasError.message : 'Erro desconhecido'}` 
+      }, { status: 500 });
     }
 
-    console.log('✅ Cliente atualizado com sucesso');
-    return NextResponse.json({ customer });
   } catch (error) {
-    console.error('❌ Erro na API customers PUT:', error);
+    console.error('❌ Erro na API PUT customers:', error);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 } 
