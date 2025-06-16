@@ -37,11 +37,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se já existe cliente para este usuário
-    const { data: existingCustomer } = await supabase
+    const { data: existingCustomer, error: searchError } = await supabase
       .from('asaas_customers')
       .select('*')
       .eq('user_id', userId)
       .single();
+
+    if (searchError && searchError.code !== 'PGRST116') {
+      console.error('❌ Erro na consulta ao banco:', searchError);
+      return NextResponse.json({ 
+        error: 'Erro ao verificar cliente existente',
+        details: searchError.message
+      }, { status: 500 });
+    }
 
     if (existingCustomer) {
       console.log('✅ Cliente já existe:', existingCustomer.asaas_customer_id);

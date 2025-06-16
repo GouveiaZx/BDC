@@ -57,21 +57,23 @@ export default function SubscriptionCheckout({
     // Buscar dados do usuário via API
     const fetchUserProfile = async () => {
       try {
-        console.log('🔍 Buscando dados do usuário:', userId);
-        
+        if (!userId) {
+          setError('Erro: Usuário não autenticado. Faça login novamente.');
+          return;
+        }
+
         const response = await fetch(`/api/users/profile?userId=${userId}`);
         
         if (!response.ok) {
-          console.error('Erro ao buscar perfil do usuário');
-          return;
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Erro ao buscar perfil do usuário');
         }
-        
-        const { profile } = await response.json();
-        console.log('✅ Dados do usuário carregados:', profile);
-        setUserProfile(profile);
-        
+
+        const data = await response.json();
+        setUserProfile(data);
       } catch (error) {
         console.error('Erro ao buscar perfil do usuário:', error);
+        setError(`Erro ao carregar perfil: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       }
     };
     
@@ -119,34 +121,15 @@ export default function SubscriptionCheckout({
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setPixQrCode(null);
-    setPixPayload(null);
-    setBoletoUrl(null);
-    
-    if (!isAuthenticated || !userId) {
-      setError('Você precisa estar logado para fazer uma assinatura.');
-      return;
-    }
-    
-    if (paymentMethod === 'credit') {
-      if (!cardNumber || !cardName || !expiryDate || !cvv) {
-        setError('Por favor, preencha todos os campos do cartão de crédito.');
-        return;
-      }
-    }
-    
     setLoading(true);
-    
+    setError('');
+
     try {
-      console.log('🚀 Iniciando criação de assinatura REAL no ASAAS...');
-      
       // PASSO 1: Criar/verificar cliente no ASAAS
       console.log('👤 Criando cliente no ASAAS...');
       
-      // Verificar se temos dados do usuário
-      if (!userProfile) {
-        setError('Erro: Dados do usuário não carregados. Recarregue a página.');
+      if (!userId) {
+        setError('Erro: Usuário não autenticado. Faça login novamente.');
         return;
       }
       
