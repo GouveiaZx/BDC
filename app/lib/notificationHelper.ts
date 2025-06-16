@@ -42,7 +42,7 @@ export const addNotification = async (options: NotificationOptions): Promise<boo
     // Base URL para API (diferente conforme ambiente)
     const baseUrl = isClient 
       ? '' // URL relativa no cliente
-      : process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'; // URL absoluta no servidor
+      : process.env.NEXT_PUBLIC_SITE_URL || 'https://www.buscaaquibdc.com'; // URL absoluta no servidor
     
     // Fazer chamada à API para adicionar notificação
     const response = await fetch(`${baseUrl}/api/notifications/add`, {
