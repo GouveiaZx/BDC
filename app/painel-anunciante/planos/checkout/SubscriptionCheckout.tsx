@@ -70,7 +70,12 @@ export default function SubscriptionCheckout({
         }
 
         const data = await response.json();
-        setUserProfile(data);
+        // A API retorna { success: true, profile: {...} }
+        if (data.success && data.profile) {
+          setUserProfile(data.profile);
+        } else {
+          setUserProfile(data); // Fallback para compatibilidade
+        }
       } catch (error) {
         console.error('Erro ao buscar perfil do usuário:', error);
         setError(`Erro ao carregar perfil: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
