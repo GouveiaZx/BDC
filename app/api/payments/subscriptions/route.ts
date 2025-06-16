@@ -10,18 +10,25 @@ const supabase = createClient(
 
 // Função para mapear ID do plano para o formato da API
 function mapPlanIdToApiFormat(planId: string): string {
-  const upperPlanId = planId.toUpperCase();
+  console.log('🔄 Mapeando planId:', planId);
   
-  // Mapeamento reverso: frontend ID → API ID (enum subscription_plan_type)
-  const reverseMap: Record<string, string> = {
+  // Mapeamento direto: frontend ID → database enum
+  const planMap: Record<string, string> = {
+    'free': 'FREE',
     'FREE': 'FREE',
+    'micro_business': 'MICRO_EMPRESA',
     'MICRO_BUSINESS': 'MICRO_EMPRESA',
+    'small_business': 'PEQUENA_EMPRESA',
     'SMALL_BUSINESS': 'PEQUENA_EMPRESA', 
+    'business_simple': 'EMPRESA_SIMPLES',
     'BUSINESS_SIMPLE': 'EMPRESA_SIMPLES',
+    'business_plus': 'EMPRESA_PLUS',
     'BUSINESS_PLUS': 'EMPRESA_PLUS'
   };
   
-  return reverseMap[upperPlanId] || upperPlanId;
+  const mappedValue = planMap[planId] || planId.toUpperCase();
+  console.log('✅ Plano mapeado:', planId, '→', mappedValue);
+  return mappedValue;
 }
 
 // Função para obter valor do plano usando a configuração centralizada
@@ -227,19 +234,19 @@ export async function POST(request: NextRequest) {
         asaas_customer_id: customer.asaas_customer_id,
         plan_type: apiPlanType, // Usar valor mapeado para o enum
         status: 'ACTIVE',
-        value: planValue,
+        value: parseFloat(planValue.toString()), // Garantir que é número
         cycle,
         next_due_date: nextDueDate.toISOString().split('T')[0],
-        description: `Assinatura ${apiPlanType}`
+        description: `Assinatura ${apiPlanType} - BDC Classificados`
       };
 
       console.log('📋 Dados da assinatura para inserir no banco:', localSubscriptionData);
       console.log('🔍 Validações:');
-      console.log('  - userId:', userId, typeof userId);
+      console.log('  - userId:', userId, typeof userId, 'válido UUID:', /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId));
       console.log('  - asaas_subscription_id:', asaasSubscription.id, typeof asaasSubscription.id);
       console.log('  - asaas_customer_id:', customer.asaas_customer_id, typeof customer.asaas_customer_id);
       console.log('  - plan_type:', apiPlanType, typeof apiPlanType, 'válido:', validPlanTypes.includes(apiPlanType));
-      console.log('  - value:', planValue, typeof planValue);
+      console.log('  - value:', planValue, typeof planValue, 'parseado:', parseFloat(planValue.toString()));
       console.log('  - cycle:', cycle, typeof cycle);
       console.log('  - next_due_date:', nextDueDate.toISOString().split('T')[0]);
 
@@ -251,6 +258,9 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('❌ Erro ao salvar assinatura no banco:', error);
+        console.error('📋 Código do erro:', error.code);
+        console.error('📋 Mensagem do erro:', error.message);
+        console.error('📋 Detalhes do erro:', error.details);
         console.error('📋 Dados que causaram erro:', localSubscriptionData);
         
         // Tentar cancelar a assinatura no ASAAS se falhou ao salvar no banco
@@ -262,7 +272,14 @@ export async function POST(request: NextRequest) {
           console.error('❌ Erro ao cancelar assinatura no ASAAS:', cancelError);
         }
         
-        return NextResponse.json({ error: 'Erro ao salvar assinatura' }, { status: 500 });
+        return NextResponse.json({ 
+          error: 'Erro ao salvar assinatura',
+          details: {
+            code: error.code,
+            message: error.message,
+            details: error.details
+          }
+        }, { status: 500 });
       }
 
       console.log('✅ Assinatura salva com sucesso no banco:', subscription.id);
