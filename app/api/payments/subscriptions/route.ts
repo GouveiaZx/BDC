@@ -175,60 +175,84 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ subscription });
     }
 
-    // Para planos pagos, criar no Asaas (MODO TEMPORÁRIO: MOCK)
-    console.log('💳 Criando assinatura paga (modo temporário)...');
+    // MODO REAL: Para planos pagos, criar assinatura real no ASAAS
+    console.log('💳 Criando assinatura paga no ASAAS...');
     
     const nextDueDate = new Date();
     nextDueDate.setMonth(nextDueDate.getMonth() + (cycle === 'YEARLY' ? 12 : 1));
 
-    // MODO TEMPORÁRIO: Criar assinatura mock sem usar Asaas
-    console.log('⚠️ MODO TEMPORÁRIO: Criando assinatura mock sem Asaas');
-    
-    const mockAsaasSubscription = {
-      id: `sub_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      status: 'ACTIVE',
-      value: planValue,
-      nextDueDate: nextDueDate.toISOString().split('T')[0],
-      billingType,
-      cycle
-    };
+    try {
+      // Criar assinatura real no ASAAS
+      console.log('🔄 Criando assinatura real no ASAAS...');
+      
+      const subscriptionData = {
+        customer: customer.asaas_customer_id,
+        billingType,
+        value: planValue,
+        nextDueDate: nextDueDate.toISOString().split('T')[0],
+        cycle,
+        description: `Assinatura ${apiPlanType} - BDC Classificados`,
+        creditCard,
+        creditCardHolderInfo
+      };
 
-    console.log('✅ Assinatura mock criada:', mockAsaasSubscription.id);
+      console.log('📋 Dados para criar assinatura no ASAAS:', subscriptionData);
 
-    // Salvar no banco local
-    console.log('💾 Salvando assinatura no banco local...');
-    const subscriptionData = {
-      user_id: userId,
-      asaas_subscription_id: mockAsaasSubscription.id,
-      asaas_customer_id: customer.asaas_customer_id,
-      plan_type: apiPlanType, // Usar valor mapeado para o enum
-      status: 'ACTIVE',
-      value: planValue,
-      cycle,
-      next_due_date: nextDueDate.toISOString().split('T')[0],
-      description: `Assinatura ${apiPlanType}`
-    };
+      const asaasSubscription = await asaasService.createSubscription(subscriptionData);
+      console.log('✅ Assinatura criada no ASAAS:', asaasSubscription.id);
 
-    console.log('📋 Dados da assinatura para inserir:', subscriptionData);
+      // Salvar no banco local
+      console.log('💾 Salvando assinatura no banco local...');
+      const localSubscriptionData = {
+        user_id: userId,
+        asaas_subscription_id: asaasSubscription.id,
+        asaas_customer_id: customer.asaas_customer_id,
+        plan_type: apiPlanType, // Usar valor mapeado para o enum
+        status: 'ACTIVE',
+        value: planValue,
+        cycle,
+        next_due_date: nextDueDate.toISOString().split('T')[0],
+        description: `Assinatura ${apiPlanType}`
+      };
 
-    const { data: subscription, error } = await supabase
-      .from('asaas_subscriptions')
-      .insert(subscriptionData)
-      .select()
-      .single();
+      console.log('📋 Dados da assinatura para inserir no banco:', localSubscriptionData);
 
-    if (error) {
-      console.error('❌ Erro ao salvar assinatura no banco:', error);
-      console.error('📋 Dados que causaram erro:', subscriptionData);
-      return NextResponse.json({ error: 'Erro ao salvar assinatura' }, { status: 500 });
+      const { data: subscription, error } = await supabase
+        .from('asaas_subscriptions')
+        .insert(localSubscriptionData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ Erro ao salvar assinatura no banco:', error);
+        console.error('📋 Dados que causaram erro:', localSubscriptionData);
+        
+        // Tentar cancelar a assinatura no ASAAS se falhou ao salvar no banco
+        try {
+          console.log('🔄 Tentando cancelar assinatura no ASAAS devido ao erro...');
+          await asaasService.cancelSubscription(asaasSubscription.id);
+          console.log('✅ Assinatura cancelada no ASAAS');
+        } catch (cancelError) {
+          console.error('❌ Erro ao cancelar assinatura no ASAAS:', cancelError);
+        }
+        
+        return NextResponse.json({ error: 'Erro ao salvar assinatura' }, { status: 500 });
+      }
+
+      console.log('✅ Assinatura salva com sucesso no banco:', subscription.id);
+      return NextResponse.json({ 
+        subscription, 
+        asaasSubscription,
+        success: 'Assinatura criada com sucesso no ASAAS'
+      });
+
+    } catch (asaasError) {
+      console.error('❌ Erro ao criar assinatura no ASAAS:', asaasError);
+      return NextResponse.json({ 
+        error: 'Erro ao criar assinatura no ASAAS',
+        details: asaasError instanceof Error ? asaasError.message : 'Erro desconhecido'
+      }, { status: 500 });
     }
-
-    console.log('✅ Assinatura salva com sucesso:', subscription.id);
-    return NextResponse.json({ 
-      subscription, 
-      asaasSubscription: mockAsaasSubscription,
-      warning: 'Assinatura criada em modo temporário sem Asaas'
-    });
   } catch (error) {
     console.error('❌ Erro na API subscriptions POST:', error);
     console.error('❌ Stack trace completo:', error.stack);
