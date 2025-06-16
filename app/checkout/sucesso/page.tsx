@@ -39,38 +39,79 @@ function CheckoutSuccessContent() {
   useEffect(() => {
     const checkUserAndLoadData = async () => {
       try {
-        // Verificar localStorage primeiro para evitar redirecionamento desnecessário
-        const userFromStorage = localStorage.getItem('user-profile');
-        if (userFromStorage) {
-          try {
-            const parsedUser = JSON.parse(userFromStorage);
-            if (parsedUser.id) {
-              setUser(parsedUser);
-            }
-          } catch (e) {
-            console.log('Erro ao parsear usuário do localStorage:', e);
+        console.log('🔄 Carregando página de sucesso...');
+        console.log('📋 Parâmetros recebidos:', {
+          plan,
+          method,
+          subscriptionId,
+          asaasId,
+          pixPaymentId,
+          hasPixCode: !!pixCode,
+          hasPixQrImage: !!pixQrImage
+        });
+
+        // PRIORIZAR localStorage para evitar logout
+        const isLoggedInLS = localStorage.getItem('isLoggedIn') === 'true';
+        const userIdLS = localStorage.getItem('userId');
+        const userEmailLS = localStorage.getItem('userEmail');
+        const userNameLS = localStorage.getItem('userName');
+        
+        console.log('🔍 Estado de autenticação localStorage:', {
+          isLoggedIn: isLoggedInLS,
+          hasUserId: !!userIdLS,
+          hasEmail: !!userEmailLS
+        });
+
+        if (isLoggedInLS && userIdLS && userEmailLS) {
+          console.log('✅ Usuário autenticado via localStorage');
+          setUser({
+            id: userIdLS,
+            email: userEmailLS,
+            user_metadata: { full_name: userNameLS || userEmailLS.split('@')[0] }
+          });
+        } else {
+          // Fallback para Supabase apenas se localStorage não tem dados
+          console.log('🔄 Verificando via Supabase...');
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            console.log('✅ Usuário encontrado via Supabase');
+            setUser(user);
+          } else {
+            console.log('❌ Nenhum usuário encontrado, mas não redirecionando imediatamente');
+            // Não redirecionar imediatamente para evitar interrupção do fluxo
+            console.log('⚠️ Tentando continuar sem usuário por 5 segundos...');
+            setTimeout(() => {
+              console.log('⏰ Timeout atingido, redirecionando para login');
+              router.push('/login?redirect=/checkout/sucesso');
+            }, 5000);
           }
         }
-        
-        // Verificar se usuário está logado (mas não redirecionar imediatamente)
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          setUser(user);
-        } else if (!userFromStorage) {
-          // Só redirecionar se não há nenhum usuário
-          console.log('Nenhum usuário encontrado, redirecionando para login...');
-          router.push('/login');
-          return;
-        }
 
-        // Se há um asaasId, buscar informações da transação
-        if (asaasId) {
+        // Se há dados PIX nos parâmetros, usar eles diretamente
+        if (pixCode || pixQrImage || pixPaymentId) {
+          console.log('💰 Usando dados PIX dos parâmetros da URL');
+          setTransactionData({
+            id: pixPaymentId || asaasId || subscriptionId,
+            status: 'PENDING',
+            amount: getPlantAmount(plan),
+            method: method,
+            pixTransaction: {
+              qrCode: {
+                payload: pixCode,
+                encodedImage: pixQrImage
+              }
+            },
+            createdAt: new Date().toISOString()
+          });
+        }
+        // Se há asaasId mas não há dados PIX, buscar via API
+        else if (asaasId) {
           try {
-            // Buscar dados da transação via API
+            console.log('🔍 Buscando dados do pagamento via API...');
             const response = await fetch(`/api/asaas/payments?subscriptionId=${asaasId}`);
             if (response.ok) {
               const paymentData = await response.json();
-              console.log('📋 Dados do pagamento recebidos:', paymentData);
+              console.log('📋 Dados do pagamento recebidos da API:', paymentData);
               
               if (paymentData.success && paymentData.payments && paymentData.payments.length > 0) {
                 const payment = paymentData.payments[0];
@@ -83,8 +124,9 @@ function CheckoutSuccessContent() {
                   invoiceUrl: payment.invoiceUrl,
                   createdAt: payment.dueDate
                 });
+                console.log('✅ Dados do pagamento configurados via API');
               } else {
-                // Fallback para dados básicos
+                console.log('⚠️ Nenhum pagamento encontrado na API, usando dados básicos');
                 setTransactionData({
                   id: asaasId,
                   status: 'PENDING',
@@ -94,10 +136,10 @@ function CheckoutSuccessContent() {
                 });
               }
             } else {
-              throw new Error('Falha ao buscar dados do pagamento');
+              throw new Error(`API retornou status ${response.status}`);
             }
           } catch (error) {
-            console.error('Erro ao buscar dados do pagamento:', error);
+            console.error('❌ Erro ao buscar dados do pagamento:', error);
             // Fallback para dados básicos
             setTransactionData({
               id: asaasId,
@@ -107,16 +149,25 @@ function CheckoutSuccessContent() {
               createdAt: new Date().toISOString()
             });
           }
+        } else {
+          console.log('📋 Usando dados básicos (sem asaasId)');
+          setTransactionData({
+            id: subscriptionId,
+            status: 'PENDING',
+            amount: getPlantAmount(plan),
+            method: method,
+            createdAt: new Date().toISOString()
+          });
         }
       } catch (error) {
-        console.error('Erro ao carregar dados:', error);
+        console.error('❌ Erro ao carregar dados:', error);
       } finally {
         setLoading(false);
       }
     };
 
     checkUserAndLoadData();
-  }, [asaasId, method, plan, router, supabase.auth]);
+  }, [asaasId, method, plan, router, supabase.auth, subscriptionId, pixPaymentId, pixCode, pixQrImage]);
 
   const getPlantAmount = (planType: string) => {
     const amounts = {

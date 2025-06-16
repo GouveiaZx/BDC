@@ -76,6 +76,8 @@ interface SubscriptionData {
   fine?: {
     value: number;
   };
+  creditCard?: any;
+  creditCardHolderInfo?: any;
 }
 
 interface AsaasResponse<T = any> {
@@ -109,42 +111,58 @@ export class AsaasClient {
       timeout: 30000
     });
 
-    // Interceptor para log de requests em desenvolvimento
-    if (config.environment === 'sandbox') {
-      this.client.interceptors.request.use(request => {
-        console.log('🔄 Asaas Request:', {
-          method: request.method?.toUpperCase(),
-          url: request.url,
-          data: request.data
-        });
-        return request;
-      });
-
-      this.client.interceptors.response.use(
-        response => {
-          console.log('✅ Asaas Response:', {
-            status: response.status,
-            data: response.data
-          });
-          return response;
+    // Interceptor para log de requests - SEMPRE ATIVO para debug
+    this.client.interceptors.request.use(request => {
+      console.log('🔄 ASAAS Request:', {
+        method: request.method?.toUpperCase(),
+        url: request.url,
+        baseURL: request.baseURL,
+        fullURL: `${request.baseURL}${request.url}`,
+        headers: {
+          'access_token': request.headers['access_token'] ? '[HIDDEN]' : 'NOT_SET',
+          'Content-Type': request.headers['Content-Type']
         },
-        error => {
-          console.error('❌ Asaas Error:', {
-            status: error.response?.status,
-            data: error.response?.data
-          });
-          return Promise.reject(error);
-        }
-      );
-    }
+        data: request.data
+      });
+      return request;
+    });
+
+    this.client.interceptors.response.use(
+      response => {
+        console.log('✅ ASAAS Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          data: response.data
+        });
+        return response;
+      },
+      error => {
+        console.error('❌ ASAAS Error:', {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          message: error.message,
+          data: error.response?.data,
+          config: {
+            method: error.config?.method,
+            url: error.config?.url,
+            baseURL: error.config?.baseURL,
+            fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A'
+          }
+        });
+        return Promise.reject(error);
+      }
+    );
   }
 
   // CUSTOMERS
   async createCustomer(customerData: Customer): Promise<AsaasResponse> {
     try {
+      console.log('🔄 Criando cliente ASAAS:', customerData);
       const response = await this.client.post('/customers', customerData);
+      console.log('✅ Cliente criado com sucesso:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao criar cliente:', error.response?.data || error.message);
       throw new Error(`Erro ao criar cliente no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
@@ -170,18 +188,24 @@ export class AsaasClient {
   // PAYMENTS
   async createPayment(paymentData: PaymentData): Promise<AsaasResponse> {
     try {
+      console.log('🔄 Criando pagamento ASAAS:', paymentData);
       const response = await this.client.post('/payments', paymentData);
+      console.log('✅ Pagamento criado:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao criar pagamento:', error.response?.data || error.message);
       throw new Error(`Erro ao criar cobrança no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
 
   async getPayment(paymentId: string): Promise<AsaasResponse> {
     try {
+      console.log('🔍 Buscando pagamento:', paymentId);
       const response = await this.client.get(`/payments/${paymentId}`);
+      console.log('✅ Pagamento encontrado:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao buscar pagamento:', error.response?.data || error.message);
       throw new Error(`Erro ao buscar cobrança no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
@@ -198,18 +222,24 @@ export class AsaasClient {
   // SUBSCRIPTIONS
   async createSubscription(subscriptionData: SubscriptionData): Promise<AsaasResponse> {
     try {
+      console.log('🔄 Criando assinatura ASAAS:', subscriptionData);
       const response = await this.client.post('/subscriptions', subscriptionData);
+      console.log('✅ Assinatura criada:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao criar assinatura:', error.response?.data || error.message);
       throw new Error(`Erro ao criar assinatura no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
 
   async getSubscription(subscriptionId: string): Promise<AsaasResponse> {
     try {
+      console.log('🔍 Buscando assinatura:', subscriptionId);
       const response = await this.client.get(`/subscriptions/${subscriptionId}`);
+      console.log('✅ Assinatura encontrada:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao buscar assinatura:', error.response?.data || error.message);
       throw new Error(`Erro ao buscar assinatura no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
@@ -223,21 +253,49 @@ export class AsaasClient {
     }
   }
 
-  async deleteSubscription(subscriptionId: string): Promise<AsaasResponse> {
+  async cancelSubscription(subscriptionId: string): Promise<AsaasResponse> {
     try {
+      console.log('🔄 Cancelando assinatura ASAAS:', subscriptionId);
       const response = await this.client.delete(`/subscriptions/${subscriptionId}`);
+      console.log('✅ Assinatura cancelada:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao cancelar assinatura:', error.response?.data || error.message);
       throw new Error(`Erro ao cancelar assinatura no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
+    }
+  }
+
+  // SUBSCRIPTION PAYMENTS - MÉTODO CRÍTICO FALTANTE!
+  async getSubscriptionPayments(subscriptionId: string): Promise<any[]> {
+    try {
+      console.log('🔍 Buscando pagamentos da assinatura:', subscriptionId);
+      const response = await this.client.get(`/subscriptions/${subscriptionId}/payments`);
+      console.log('✅ Pagamentos da assinatura encontrados:', response.data);
+      
+      // A resposta pode vir como array direto ou como objeto com data
+      if (Array.isArray(response.data)) {
+        return response.data;
+      } else if (response.data.data && Array.isArray(response.data.data)) {
+        return response.data.data;
+      } else {
+        console.log('📋 Formato de resposta não esperado:', response.data);
+        return [];
+      }
+    } catch (error: any) {
+      console.error('❌ Erro ao buscar pagamentos da assinatura:', error.response?.data || error.message);
+      throw new Error(`Erro ao buscar pagamentos da assinatura: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
 
   // PIX
   async getPixQrCode(paymentId: string): Promise<AsaasResponse> {
     try {
+      console.log('🔍 Buscando QR Code PIX para pagamento:', paymentId);
       const response = await this.client.get(`/payments/${paymentId}/pixQrCode`);
+      console.log('✅ QR Code PIX gerado:', response.data);
       return response.data;
     } catch (error: any) {
+      console.error('❌ Erro ao gerar QR Code PIX:', error.response?.data || error.message);
       throw new Error(`Erro ao gerar QR Code PIX: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
@@ -263,6 +321,12 @@ export class AsaasClient {
 }
 
 // Instância global configurada
+console.log('🔧 Configurando ASAAS com variáveis:', {
+  apiKey: process.env.ASAAS_API_KEY ? '[PRESENTE]' : '[AUSENTE]',
+  apiUrl: process.env.ASAAS_API_URL || 'DEFAULT',
+  environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
+});
+
 const asaas = new AsaasClient({
   apiKey: process.env.ASAAS_API_KEY || 'sandbox_your_api_key_here',
   apiUrl: process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3',

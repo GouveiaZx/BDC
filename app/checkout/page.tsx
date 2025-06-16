@@ -259,10 +259,19 @@ function CheckoutContent() {
       return;
     }
 
+    console.log('💳 Iniciando checkout...');
+    console.log('📋 Dados do checkout:', {
+      selectedPlan,
+      billingType,
+      userId: user.id,
+      userName: user.user_metadata?.full_name || user.email
+    });
+
     setLoading(true);
 
     try {
       // Criar cliente se necessário
+      console.log('🔄 Criando cliente se necessário...');
       await createCustomerIfNeeded();
 
       // Criar assinatura
@@ -279,18 +288,29 @@ function CheckoutContent() {
         subscriptionData.creditCardHolderInfo = cardHolderInfo;
       }
 
+      console.log('📝 Enviando dados de assinatura:', subscriptionData);
+
       const response = await fetch('/api/payments/subscriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(subscriptionData)
       });
 
+      console.log('📡 Resposta da API:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
       const data = await response.json();
+      console.log('📋 Dados retornados da API:', data);
 
       if (!response.ok) {
-        throw new Error(data.error);
+        console.error('❌ Erro na resposta da API:', data);
+        throw new Error(data.error || `Erro HTTP ${response.status}: ${response.statusText}`);
       }
 
+      console.log('✅ Assinatura criada com sucesso!');
       toast.success('Assinatura criada com sucesso!');
       
       // Redirecionar para página de sucesso com informações do pagamento
@@ -302,23 +322,33 @@ function CheckoutContent() {
 
       if (data.asaasSubscription?.id) {
         successParams.append('asaasId', data.asaasSubscription.id);
+        console.log('🆔 ID da assinatura ASAAS:', data.asaasSubscription.id);
       }
 
       // Passar dados PIX se disponíveis
       if (data.pixData) {
+        console.log('💰 Dados PIX recebidos:', data.pixData);
         successParams.append('pixPaymentId', data.pixData.paymentId);
         if (data.pixData.qrCode?.payload) {
           successParams.append('pixCode', data.pixData.qrCode.payload);
+          console.log('📱 Código PIX adicionado aos parâmetros');
         }
         if (data.pixData.qrCode?.encodedImage) {
           successParams.append('pixQrImage', data.pixData.qrCode.encodedImage);
+          console.log('🖼️ Imagem QR Code adicionada aos parâmetros');
         }
+      } else {
+        console.log('⚠️ Nenhum dado PIX retornado da API');
       }
 
-      router.push(`/checkout/sucesso?${successParams.toString()}`);
+      const successUrl = `/checkout/sucesso?${successParams.toString()}`;
+      console.log('🎯 Redirecionando para:', successUrl);
+      
+      router.push(successUrl);
 
     } catch (error: any) {
-      console.error('Erro no checkout:', error);
+      console.error('❌ Erro no checkout:', error);
+      console.error('📊 Stack trace:', error.stack);
       toast.error(error.message || 'Erro ao processar pagamento');
     } finally {
       setLoading(false);
