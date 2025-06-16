@@ -42,6 +42,7 @@ export default function SubscriptionCheckout({
   const [pixPayload, setPixPayload] = useState<string | null>(null);
   const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
   
   const isPaidPlan = planId !== SubscriptionPlan.FREE;
   
@@ -52,6 +53,48 @@ export default function SubscriptionCheckout({
       router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
       return;
     }
+    
+    // Buscar dados do usuário
+    const fetchUserProfile = async () => {
+      try {
+        console.log('🔍 Buscando dados do usuário:', userId);
+        const { supabase } = await import('../../../lib/supabase');
+        
+        // Buscar dados do usuário na tabela users
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id, email, name, phone, cpf_cnpj')
+          .eq('id', userId)
+          .single();
+        
+        if (userError) {
+          console.error('Erro ao buscar dados do usuário:', userError);
+          return;
+        }
+        
+        // Buscar dados do perfil na tabela profiles
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('name, email, phone')
+          .eq('user_id', userId)
+          .single();
+        
+        // Combinar dados (priorizar dados do perfil se existirem)
+        const combinedProfile = {
+          id: userData.id,
+          email: profileData?.email || userData.email,
+          name: profileData?.name || userData.name,
+          phone: profileData?.phone || userData.phone,
+          cpf_cnpj: userData.cpf_cnpj
+        };
+        
+        console.log('✅ Dados do usuário carregados:', combinedProfile);
+        setUserProfile(combinedProfile);
+        
+      } catch (error) {
+        console.error('Erro ao buscar perfil do usuário:', error);
+      }
+    };
     
     // Verificar elegibilidade para trial
     const checkTrialEligibility = async () => {
@@ -64,6 +107,7 @@ export default function SubscriptionCheckout({
       }
     };
     
+    fetchUserProfile();
     checkTrialEligibility();
   }, [planId, userId, isAuthenticated, router]);
 
@@ -120,15 +164,28 @@ export default function SubscriptionCheckout({
       
       // PASSO 1: Criar/verificar cliente no ASAAS
       console.log('👤 Criando cliente no ASAAS...');
+      
+      // Verificar se temos dados do usuário
+      if (!userProfile) {
+        setError('Erro: Dados do usuário não carregados. Recarregue a página.');
+        return;
+      }
+      
+      // Verificar se temos pelo menos email
+      if (!userProfile.email) {
+        setError('Erro: Email do usuário não encontrado. Complete seu perfil primeiro.');
+        return;
+      }
+      
       const customerResponse = await fetch('/api/payments/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: userId,
-          name: cardName || 'Cliente BDC',
-          email: `user${userId}@buscaaquibdc.com`, // TODO: Obter email real do usuário
-          phone: '99999999999', // TODO: Obter telefone real
-          cpfCnpj: '00000000000', // TODO: Obter CPF real
+          name: cardName || userProfile.name || 'Cliente BDC',
+          email: userProfile.email,
+          phone: userProfile.phone || undefined,
+          cpfCnpj: userProfile.cpf_cnpj || undefined,
         })
       });
 
@@ -158,12 +215,12 @@ export default function SubscriptionCheckout({
           ccv: cvv
         } : undefined,
         creditCardHolderInfo: paymentMethod === 'credit' ? {
-          name: cardName,
-          email: `user${userId}@buscaaquibdc.com`,
-          cpfCnpj: '00000000000',
-          postalCode: '00000000',
-          addressNumber: '123',
-          phone: '99999999999'
+          name: cardName || userProfile.name,
+          email: userProfile.email,
+          cpfCnpj: userProfile.cpf_cnpj || undefined,
+          postalCode: undefined, // Será solicitado no futuro se necessário
+          addressNumber: undefined, // Será solicitado no futuro se necessário
+          phone: userProfile.phone || undefined
         } : undefined
       };
 
