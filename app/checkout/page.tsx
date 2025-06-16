@@ -711,13 +711,19 @@ function CheckoutContent() {
 }
 
 export default function CheckoutPage() {
+  const router = useRouter()
+
+  useEffect(() => {
+    // Redirecionar para a nova página de checkout
+    router.replace('/painel-anunciante/planos')
+  }, [router])
+
   return (
-    <Suspense fallback={
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin" />
+    <div className="flex justify-center items-center min-h-screen">
+      <div className="text-center">
+        <h2 className="text-xl font-semibold mb-2">Redirecionando...</h2>
+        <p className="text-gray-600">Você será redirecionado para a nova página de planos.</p>
       </div>
-    }>
-      <CheckoutContent />
-    </Suspense>
-  );
+    </div>
+  )
 } 
