@@ -33,6 +33,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
     terms: false,
     companyName: '',
     cnpj: '',
+    cpf: '',
     companyDescription: ''
   });
   
@@ -147,6 +148,34 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
     });
   };
 
+  // Função para formatar CPF
+  const formatCPF = (value: string) => {
+    if (!value) return value;
+    
+    // Remove todos os caracteres não numéricos
+    const cpf = value.replace(/\D/g, '');
+    
+    // Aplica a máscara XXX.XXX.XXX-XX
+    if (cpf.length <= 3) {
+      return cpf;
+    }
+    if (cpf.length <= 6) {
+      return `${cpf.slice(0, 3)}.${cpf.slice(3)}`;
+    }
+    if (cpf.length <= 9) {
+      return `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6)}`;
+    }
+    return `${cpf.slice(0, 3)}.${cpf.slice(3, 6)}.${cpf.slice(6, 9)}-${cpf.slice(9, 11)}`;
+  };
+  
+  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formattedCPF = formatCPF(e.target.value);
+    setFormData({
+      ...formData,
+      cpf: formattedCPF
+    });
+  };
+
   const validateLoginForm = () => {
     const newErrors: Record<string, string> = {};
     
@@ -181,6 +210,13 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
       newErrors.email = 'E-mail é obrigatório';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'E-mail inválido';
+    }
+    
+    // Validação do CPF obrigatório para pessoa física
+    if (!formData.cpf.trim()) {
+      newErrors.cpf = 'CPF é obrigatório';
+    } else if (!/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(formData.cpf)) {
+      newErrors.cpf = 'Formato: 000.000.000-00';
     }
     
     if (formData.phone && !/^\(\d{2}\) \d{5}-\d{4}$/.test(formData.phone)) {
@@ -677,6 +713,29 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
             </div>
 
             <div>
+              <label htmlFor="cpf" className="block text-sm font-medium text-white">
+                CPF <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaUser className="h-5 w-5 text-white" />
+                </div>
+                <input
+                  id="cpf"
+                  name="cpf"
+                  type="text"
+                  value={formData.cpf}
+                  onChange={handleCPFChange}
+                  className={`bg-gray-800 block w-full pl-10 pr-3 py-3 border ${
+                    errors.cpf ? 'border-red-500' : 'border-gray-600'
+                  } rounded-md placeholder-gray-400 text-white focus:outline-none focus:ring-primary focus:border-primary`}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              {errors.cpf && <p className="mt-1 text-sm text-red-500">{errors.cpf}</p>}
+            </div>
+
+            <div>
               <label htmlFor="phone" className="block text-sm font-medium text-white">
                 Telefone
               </label>
@@ -767,6 +826,29 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
                 />
               </div>
               {errors.cnpj && <p className="mt-1 text-sm text-red-500">{errors.cnpj}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="cpf" className="block text-sm font-medium text-white">
+                CPF <span className="text-red-500">*</span>
+              </label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <FaUser className="h-5 w-5 text-white" />
+                </div>
+                <input
+                  type="text"
+                  name="cpf"
+                  id="cpf"
+                  value={formData.cpf}
+                  onChange={handleCPFChange}
+                  className={`bg-gray-800 block w-full pl-10 pr-3 py-3 border ${
+                    errors.cpf ? 'border-red-500' : 'border-gray-600'
+                  } rounded-md shadow-sm placeholder-gray-400 text-white focus:outline-none focus:ring-primary focus:border-primary`}
+                  placeholder="000.000.000-00"
+                />
+              </div>
+              {errors.cpf && <p className="mt-1 text-sm text-red-500">{errors.cpf}</p>}
             </div>
 
             <div>

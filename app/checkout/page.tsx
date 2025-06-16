@@ -247,13 +247,15 @@ function CheckoutContent() {
       return;
     }
 
-    if (billingType === 'CREDIT_CARD' && (!creditCard.number || !creditCard.holderName || !creditCard.ccv)) {
-      toast.error('Preencha todos os dados do cartão');
+    // Validação obrigatória para todos os métodos de pagamento
+    if (!cardHolderInfo.name || !cardHolderInfo.cpfCnpj || !cardHolderInfo.phone) {
+      toast.error('Preencha todos os dados obrigatórios: Nome, CPF/CNPJ e Telefone');
       return;
     }
 
-    if (billingType === 'CREDIT_CARD' && (!cardHolderInfo.name || !cardHolderInfo.cpfCnpj || !cardHolderInfo.phone)) {
-      toast.error('Preencha todos os dados do portador do cartão');
+    // Validação específica do cartão de crédito
+    if (billingType === 'CREDIT_CARD' && (!creditCard.number || !creditCard.holderName || !creditCard.ccv)) {
+      toast.error('Preencha todos os dados do cartão');
       return;
     }
 
@@ -422,6 +424,51 @@ function CheckoutContent() {
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Dados Obrigatórios */}
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-4">Dados para Faturamento</h3>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>📋 Informação importante:</strong> CPF ou CNPJ é obrigatório para processar pagamentos.
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-1">Nome Completo/Razão Social <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={cardHolderInfo.name}
+                  onChange={(e) => setCardHolderInfo(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Nome completo ou razão social"
+                  className="w-full p-2 border rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">CPF/CNPJ <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={cardHolderInfo.cpfCnpj}
+                  onChange={(e) => setCardHolderInfo(prev => ({ ...prev, cpfCnpj: e.target.value }))}
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  className="w-full p-2 border rounded-md"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">Telefone <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={cardHolderInfo.phone}
+                  onChange={(e) => setCardHolderInfo(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="(11) 99999-9999"
+                  className="w-full p-2 border rounded-md"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Método de Pagamento */}
