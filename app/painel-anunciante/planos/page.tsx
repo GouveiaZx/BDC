@@ -171,18 +171,31 @@ export default function Planos() {
     // Recupera o plano atual do usuário da API e do localStorage
     const fetchCurrentPlan = async () => {
       try {
+        console.log('🔍 [DEBUG] Iniciando fetchCurrentPlan...');
+        
         // Verificar se o usuário está logado
         const isLoggedInLS = localStorage.getItem('isLoggedIn') === 'true';
         const isLoggedInSS = sessionStorage.getItem('isLoggedIn') === 'true';
+        const userProfile = JSON.parse(localStorage.getItem('userProfile') || '{}');
+        const userId = userProfile.id;
+        
+        console.log('🔍 [DEBUG] Estado de autenticação:', {
+          isLoggedInLS,
+          isLoggedInSS,
+          hasUserId: !!userId,
+          userId: userId
+        });
         
         if (!isLoggedInLS && !isLoggedInSS) {
+          console.log('❌ [DEBUG] Usuário não logado, redirecionando...');
           // Se não estiver logado, redirecionar para login
           window.location.href = '/login';
           return;
         }
         
         // Tentar buscar o plano da API
-        const response = await fetch('/api/subscriptions/current', {
+        console.log('🔍 [DEBUG] Fazendo requisição para /api/subscriptions/current...');
+        const response = await fetch(`/api/subscriptions/current?userId=${userId}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -190,21 +203,31 @@ export default function Planos() {
           credentials: 'include',
         });
         
+        console.log('🔍 [DEBUG] Status da resposta:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
+          console.log('🔍 [DEBUG] Dados recebidos da API:', data);
+          
           // Plano vem da API com o formato correto (ex: "FREE", "BUSINESS_SIMPLE", etc.)
-          const apiPlanId = mapSubscriptionPlanToLocalId(data.plan);
+          const apiPlanId = mapSubscriptionPlanToLocalId(data.subscription?.plan || data.plan || 'free');
+          console.log('🔍 [DEBUG] Plano mapeado:', apiPlanId);
+          
           setCurrentPlanId(apiPlanId);
           
           // Define uma data de renovação fictícia (30 dias a partir de hoje)
-          if (data.renewalDate) {
-            setCurrentPlanRenewalDate(new Date(data.renewalDate).toLocaleDateString('pt-BR'));
+          if (data.subscription?.renewalDate || data.renewalDate) {
+            setCurrentPlanRenewalDate(new Date(data.subscription?.renewalDate || data.renewalDate).toLocaleDateString('pt-BR'));
           } else {
             const renewalDate = new Date();
             renewalDate.setDate(renewalDate.getDate() + 30);
             setCurrentPlanRenewalDate(renewalDate.toLocaleDateString('pt-BR'));
           }
         } else {
+          console.log('❌ [DEBUG] Erro na resposta da API:', response.status);
+          const errorData = await response.text();
+          console.log('❌ [DEBUG] Dados do erro:', errorData);
+          
           // Fallback: usar o plano gratuito se a API falhar
           setCurrentPlanId('basic');
           const renewalDate = new Date();
@@ -212,7 +235,7 @@ export default function Planos() {
           setCurrentPlanRenewalDate(renewalDate.toLocaleDateString('pt-BR'));
         }
       } catch (error) {
-        console.error('Erro ao buscar plano atual:', error);
+        console.error('❌ [DEBUG] Erro ao buscar plano atual:', error);
         // Fallback para o plano gratuito em caso de erro
         setCurrentPlanId('basic');
         const renewalDate = new Date();
@@ -248,16 +271,24 @@ export default function Planos() {
   };
   
   const handleChangePlan = async (planId: string) => {
+    console.log('🚀 [DEBUG] handleChangePlan chamada com planId:', planId);
+    console.log('🚀 [DEBUG] currentPlanId atual:', currentPlanId);
+    
     const changeType = getPlanChangeType(planId);
+    console.log('🚀 [DEBUG] Tipo de mudança:', changeType);
+    
     const plan = plans.find(p => p.id === planId);
+    console.log('🚀 [DEBUG] Plano encontrado:', plan);
     
     if (!plan) {
+      console.log('❌ [DEBUG] Plano não encontrado!');
       alert('Plano não encontrado. Por favor, tente novamente.');
       return;
     }
     
     // Se for o plano gratuito, ativar diretamente
     if (planId === 'basic') {
+      console.log('🔄 [DEBUG] Ativando plano gratuito...');
       try {
         const response = await fetch('/api/subscriptions/activate-free', {
           method: 'POST',
@@ -287,17 +318,32 @@ export default function Planos() {
     }
     
     // Para os outros planos, redirecionar para a página correta de checkout
+    console.log('🔄 [DEBUG] Processando plano pago...');
+    
     if (changeType === 'upgrade') {
+      console.log('⬆️ [DEBUG] Upgrade detectado, mostrando confirmação...');
       if (confirm(`Deseja fazer upgrade para o plano ${plan.name}? Você terá acesso imediato a mais recursos.`)) {
+        console.log('✅ [DEBUG] Usuário confirmou upgrade, redirecionando...');
+        const redirectUrl = `/painel-anunciante/planos/checkout?plan=${planId}`;
+        console.log('🔗 [DEBUG] URL de redirecionamento:', redirectUrl);
         // Redirecionar para a página correta de checkout
-        window.location.href = `/painel-anunciante/planos/checkout?plan=${planId}`;
+        window.location.href = redirectUrl;
+      } else {
+        console.log('❌ [DEBUG] Usuário cancelou upgrade');
       }
     } else if (changeType === 'downgrade') {
+      console.log('⬇️ [DEBUG] Downgrade detectado, mostrando confirmação...');
       if (confirm(`Tem certeza que deseja fazer downgrade para o plano ${plan.name}? Alguns recursos serão perdidos.`)) {
+        console.log('✅ [DEBUG] Usuário confirmou downgrade, redirecionando...');
+        const redirectUrl = `/painel-anunciante/planos/checkout?plan=${planId}`;
+        console.log('🔗 [DEBUG] URL de redirecionamento:', redirectUrl);
         // Redirecionar para a página correta de checkout
-        window.location.href = `/painel-anunciante/planos/checkout?plan=${planId}`;
+        window.location.href = redirectUrl;
+      } else {
+        console.log('❌ [DEBUG] Usuário cancelou downgrade');
       }
     } else {
+      console.log('⚠️ [DEBUG] Plano atual selecionado');
       alert(`Você já está no plano ${plan.name}.`);
     }
   };
