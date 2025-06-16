@@ -54,42 +54,21 @@ export default function SubscriptionCheckout({
       return;
     }
     
-    // Buscar dados do usuário
+    // Buscar dados do usuário via API
     const fetchUserProfile = async () => {
       try {
         console.log('🔍 Buscando dados do usuário:', userId);
-        const { supabase } = await import('../../../lib/supabase');
         
-        // Buscar dados do usuário na tabela users
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, email, name, phone, cpf_cnpj')
-          .eq('id', userId)
-          .single();
+        const response = await fetch(`/api/users/profile?userId=${userId}`);
         
-        if (userError) {
-          console.error('Erro ao buscar dados do usuário:', userError);
+        if (!response.ok) {
+          console.error('Erro ao buscar perfil do usuário');
           return;
         }
         
-        // Buscar dados do perfil na tabela profiles
-        const { data: profileData, error: profileError } = await supabase
-          .from('profiles')
-          .select('name, email, phone')
-          .eq('user_id', userId)
-          .single();
-        
-        // Combinar dados (priorizar dados do perfil se existirem)
-        const combinedProfile = {
-          id: userData.id,
-          email: profileData?.email || userData.email,
-          name: profileData?.name || userData.name,
-          phone: profileData?.phone || userData.phone,
-          cpf_cnpj: userData.cpf_cnpj
-        };
-        
-        console.log('✅ Dados do usuário carregados:', combinedProfile);
-        setUserProfile(combinedProfile);
+        const { profile } = await response.json();
+        console.log('✅ Dados do usuário carregados:', profile);
+        setUserProfile(profile);
         
       } catch (error) {
         console.error('Erro ao buscar perfil do usuário:', error);

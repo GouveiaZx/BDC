@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
+// Configuração do Supabase com service role
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 // Force dynamic rendering for this route
 export const dynamic = 'force-dynamic';
@@ -41,180 +42,55 @@ function extractUserFromRequest(request: NextRequest) {
 // GET - Buscar perfil do usuário
 export async function GET(request: NextRequest) {
   try {
-    const userToken = extractUserFromRequest(request);
-    
-    if (!userToken) {
-      return NextResponse.json(
-        { success: false, error: 'Token de autenticação necessário' },
-        { status: 401 }
-      );
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
+    if (!userId) {
+      return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Buscar dados completos do usuário com LEFT JOIN para evitar erros
-    const { data: user, error: userError } = await supabase
+    console.log('🔍 Buscando perfil do usuário:', userId);
+
+    // Buscar dados do usuário na tabela users
+    const { data: userData, error: userError } = await supabase
       .from('users')
-      .select(`
-        id,
-        email,
-        name,
-        phone,
-        whatsapp,
-        user_type,
-        profile_image_url,
-        bio,
-        city_id,
-        state,
-        address,
-        zip_code,
-        website,
-        is_active,
-        email_verified,
-        created_at,
-        updated_at,
-        last_login_at,
-        login_count,
-        asaas_customer_id,
-        cpf_cnpj,
-        cities:city_id (
-          id,
-          name,
-          state
-        )
-      `)
-      .eq('id', userToken.userId)
-      .eq('is_active', true)
+      .select('id, email, name, phone, cpf_cnpj')
+      .eq('id', userId)
       .single();
 
     if (userError) {
-      console.error('Erro ao buscar usuário:', userError);
-      return NextResponse.json(
-        { success: false, error: 'Usuário não encontrado' },
-        { status: 404 }
-      );
+      console.error('❌ Erro ao buscar dados do usuário:', userError);
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
     }
 
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Usuário não encontrado' },
-        { status: 404 }
-      );
-    }
+    // Buscar dados do perfil na tabela profiles
+    const { data: profileData, error: profileError } = await supabase
+      .from('profiles')
+      .select('name, email, phone')
+      .eq('user_id', userId)
+      .single();
 
-    // Buscar assinatura ativa (separadamente para evitar conflitos)
-    const { data: subscriptions, error: subscriptionError } = await supabase
-      .from('subscriptions')
-      .select(`
-        id,
-        plan_id,
-        status,
-        starts_at,
-        ends_at,
-        is_trial,
-        ads_used,
-        highlights_used_today,
-        last_highlight_date,
-        payment_method,
-        created_at,
-        plans!inner (
-          id,
-          name,
-          slug,
-          description,
-          price_monthly,
-          price_yearly,
-          max_ads,
-          max_highlights_per_day,
-          ad_duration_days,
-          max_photos_per_ad,
-          has_premium_features,
-          max_business_categories,
-          is_featured
-        )
-      `)
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    // Buscar estatísticas do usuário
-    const { data: adsStats, error: adsError } = await supabase
-      .from('ads')
-      .select('status')
-      .eq('user_id', user.id);
-
-    if (adsError) {
-      console.error('Erro ao buscar estatísticas de anúncios:', adsError);
-    }
-
-    const stats = {
-      total_ads: adsStats?.length || 0,
-      active_ads: adsStats?.filter(ad => ad.status === 'approved').length || 0,
-      pending_ads: adsStats?.filter(ad => ad.status === 'pending').length || 0,
-      expired_ads: adsStats?.filter(ad => ad.status === 'expired').length || 0,
-      rejected_ads: adsStats?.filter(ad => ad.status === 'rejected').length || 0
+    // Combinar dados (priorizar dados do perfil se existirem)
+    const combinedProfile = {
+      id: userData.id,
+      email: profileData?.email || userData.email,
+      name: profileData?.name || userData.name,
+      phone: profileData?.phone || userData.phone,
+      cpf_cnpj: userData.cpf_cnpj
     };
 
-    // Processar dados da assinatura
-    let subscriptionData = null;
-    if (subscriptions && subscriptions.length > 0) {
-      const sub = subscriptions[0];
-      const plan = Array.isArray(sub.plans) ? sub.plans[0] : sub.plans;
-      subscriptionData = {
-        id: sub.id,
-        plan: plan,
-        status: sub.status,
-        starts_at: sub.starts_at,
-        ends_at: sub.ends_at,
-        is_trial: sub.is_trial,
-        ads_used: sub.ads_used,
-        ads_remaining: Math.max(0, (plan?.max_ads || 1) - sub.ads_used),
-        highlights_used_today: sub.highlights_used_today,
-        max_highlights_per_day: plan?.max_highlights_per_day || 0,
-        payment_method: sub.payment_method,
-        created_at: sub.created_at
-      };
-    }
+    console.log('✅ Perfil do usuário encontrado');
 
-    // Preparar resposta final
-    const userProfile = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      phone: user.phone,
-      whatsapp: user.whatsapp,
-      user_type: user.user_type,
-      profile_image_url: user.profile_image_url,
-      bio: user.bio,
-      city_id: user.city_id,
-      city: user.cities,
-      state: user.state,
-      address: user.address,
-      zip_code: user.zip_code,
-      website: user.website,
-      is_active: user.is_active,
-      email_verified: user.email_verified,
-      created_at: user.created_at,
-      updated_at: user.updated_at,
-      last_login_at: user.last_login_at,
-      login_count: user.login_count,
-      has_asaas_account: !!user.asaas_customer_id,
-      subscription: subscriptionData,
-      stats
-    };
-
-    return NextResponse.json({
+    return NextResponse.json({ 
       success: true,
-      user: userProfile
+      profile: combinedProfile
     });
 
   } catch (error) {
-    console.error('Erro ao buscar perfil:', error);
-    return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
-      { status: 500 }
-    );
+    console.error('❌ Erro na API de perfil:', error);
+    return NextResponse.json({ 
+      error: 'Erro interno do servidor' 
+    }, { status: 500 });
   }
 }
 
