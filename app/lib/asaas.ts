@@ -125,26 +125,30 @@ class AsaasService {
     // Chave de API da Asaas configurada - USAR DO .ENV
     this.apiKey = process.env.ASAAS_API_KEY || "";
     
-    // Log detalhado para debug - MODO PRODUÇÃO
-    console.log('🔑 ASAAS Config Check:', {
-      hasEnvKey: !!process.env.ASAAS_API_KEY,
-      keyLength: this.apiKey.length,
-      keyPrefix: this.apiKey.substring(0, 10),
-      isProduction: process.env.NODE_ENV === 'production'
-    });
+    // Detectar se está executando no cliente (browser)
+    this.isClient = typeof window !== 'undefined';
     
-    if (!this.apiKey) {
-      console.error('❌ ASAAS_API_KEY não configurada no .env');
-      throw new Error('ASAAS_API_KEY é obrigatória');
-    } else {
+    // Durante o build, não falhar se a chave não estiver presente
+    // A verificação será feita apenas quando realmente precisar usar a API
+    if (process.env.NODE_ENV === 'production' && !this.isClient && !this.apiKey) {
+      console.warn('⚠️ ASAAS_API_KEY não configurada - será necessária para operações da API');
+    } else if (this.apiKey) {
       console.log('✅ ASAAS_API_KEY carregada com sucesso');
+    }
+    
+    // Log detalhado para debug apenas quando necessário
+    if (this.apiKey || !this.isClient) {
+      console.log('🔑 ASAAS Config Check:', {
+        hasEnvKey: !!process.env.ASAAS_API_KEY,
+        keyLength: this.apiKey.length,
+        keyPrefix: this.apiKey.substring(0, 10),
+        isProduction: process.env.NODE_ENV === 'production',
+        isClient: this.isClient
+      });
     }
     
     // URL base da API do Asaas (API v3 atualizada)
     this.baseUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3";
-    
-    // Detectar se está executando no cliente (browser)
-    this.isClient = typeof window !== 'undefined';
     
     // MODO REAL SEMPRE - Apenas usar backend routes no cliente para evitar CORS
     this.useMock = false;
@@ -207,6 +211,11 @@ class AsaasService {
    * Configuração para requisições à API - MODO REAL
    */
   private async makeRequest(endpoint: string, method: string, data?: any) {
+    // Verificar se a API key está disponível para operações reais
+    if (!this.apiKey) {
+      throw new Error('ASAAS_API_KEY é necessária para operações da API. Configure a variável de ambiente no Vercel.');
+    }
+    
     // Se está no cliente, usar APIs backend para evitar CORS
     if (this.isClient) {
       return this.makeBackendRequest(endpoint, method, data);

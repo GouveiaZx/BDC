@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import asaasService from '../../../lib/asaas';
 
 /**
  * API Route para interagir com Asaas via backend
@@ -8,6 +7,9 @@ import asaasService from '../../../lib/asaas';
 
 export async function GET(request: NextRequest) {
   try {
+    // Importar dinamicamente apenas quando necessário
+    const { default: asaasService } = await import('../../../lib/asaas');
+    
     const { searchParams } = new URL(request.url);
     const cpfCnpj = searchParams.get('cpfCnpj');
     const email = searchParams.get('email');
@@ -38,6 +40,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Importar dinamicamente apenas quando necessário
+    const { default: asaasService } = await import('../../../lib/asaas');
+    
     const customerData = await request.json();
     const customer = await asaasService.createCustomer(customerData);
     

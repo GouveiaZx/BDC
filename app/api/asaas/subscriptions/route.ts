@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import asaasService from '../../../lib/asaas';
 
 /**
  * API Route para gerenciar assinaturas Asaas via backend
@@ -7,6 +6,9 @@ import asaasService from '../../../lib/asaas';
 
 export async function GET(request: NextRequest) {
   try {
+    // Importar dinamicamente apenas quando necessário
+    const { default: asaasService } = await import('../../../lib/asaas');
+    
     const { searchParams } = new URL(request.url);
     const customerId = searchParams.get('customerId');
     const subscriptionId = searchParams.get('subscriptionId');
@@ -37,6 +39,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Importar dinamicamente apenas quando necessário
+    const { default: asaasService } = await import('../../../lib/asaas');
+    
     const subscriptionData = await request.json();
     const subscription = await asaasService.createSubscription(subscriptionData);
     
@@ -53,6 +58,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    // Importar dinamicamente apenas quando necessário
+    const { default: asaasService } = await import('../../../lib/asaas');
+    
     const { searchParams } = new URL(request.url);
     const subscriptionId = searchParams.get('subscriptionId');
 
