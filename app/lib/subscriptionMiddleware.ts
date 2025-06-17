@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SubscriptionPlan } from '../models/types';
 import { FeatureType } from './subscriptionContext';
 import { getSubscriptionLimits } from '../config/subscription-limits';
-import asaasService from './asaas';
+import asaasService from '../../lib/asaas';
 
 // Mapeamento de recursos/funcionalidades para planos mínimos necessários
 const featureToMinimumPlanMap: Record<FeatureType, SubscriptionPlan> = {
@@ -51,22 +51,9 @@ export async function checkSubscriptionAccess(
   }
   
   try {
-    // Buscar assinatura atual do usuário
-    const asaasCustomer = await asaasService.getCustomerByCpfCnpj(userId);
-    if (!asaasCustomer) {
-      // Se não for um cliente Asaas, assumir plano gratuito
-      const hasAccess = planHasAccess(SubscriptionPlan.FREE, feature);
-      if (!hasAccess) {
-        return NextResponse.json({ 
-          error: 'Assinatura necessária', 
-          requiredPlan: featureToMinimumPlanMap[feature] 
-        }, { status: 403 });
-      }
-      return null; // Continue com o request
-    }
-    
-    // Verificar assinatura ativa
-    const currentPlan = await asaasService.getCustomerPlan(asaasCustomer.id);
+    // Por enquanto, assumir plano gratuito para todos os usuários
+    // TODO: Implementar busca real de assinatura quando métodos estiverem disponíveis
+    const currentPlan = SubscriptionPlan.FREE;
     const hasAccess = planHasAccess(currentPlan, feature);
     
     if (!hasAccess) {
@@ -107,13 +94,9 @@ export async function checkResourceLimits(
   }
   
   try {
-    // Buscar assinatura atual e contar recursos existentes
-    const asaasCustomer = await asaasService.getCustomerByCpfCnpj(userId);
-    let currentPlan = SubscriptionPlan.FREE;
-    
-    if (asaasCustomer) {
-      currentPlan = await asaasService.getCustomerPlan(asaasCustomer.id);
-    }
+    // Por enquanto, assumir plano gratuito para todos os usuários
+    // TODO: Implementar busca real de assinatura quando métodos estiverem disponíveis
+    const currentPlan = SubscriptionPlan.FREE;
     
     const limits = getSubscriptionLimits(currentPlan);
     
