@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SubscriptionPlan } from '../../../models/types';
-import asaasService, { AsaasCustomer, AsaasSubscription } from '../../../lib/asaas';
-import { planToAsaasMap } from '../../../lib/asaas';
+import asaasService from '../../../../lib/asaas';
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,7 +44,7 @@ export async function POST(req: NextRequest) {
       asaasCustomerId = existingCustomer.id;
     } else {
       // Criar cliente
-      const customerPayload: AsaasCustomer = {
+      const customerPayload = {
         name: customerData.name,
         email: customerData.email,
         phone: customerData.phone || '',
@@ -72,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Criar nova assinatura
-    const subscriptionPayload: AsaasSubscription = {
+    const subscriptionPayload = {
       customer: asaasCustomerId,
       billingType: mapPaymentMethod(paymentMethod),
       value: getPlanPrice(planId as SubscriptionPlan),

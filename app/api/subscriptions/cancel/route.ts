@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import asaasService from '../../../lib/asaas';
+import asaasService from '../../../../lib/asaas';
 import { SubscriptionPlan } from '../../../models/types';
 
 export async function POST(req: NextRequest) {
