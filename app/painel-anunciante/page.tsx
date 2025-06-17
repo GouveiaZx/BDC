@@ -712,7 +712,7 @@ export default function AdvertiserDashboard() {
               {userPlan.name === 'Gratuito' ? (
                 <>
                   <Link 
-                    href="/checkout" 
+                    href="/painel-anunciante/planos?upgrade=true" 
                     className="inline-block bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
                   >
                     Fazer upgrade

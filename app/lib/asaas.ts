@@ -125,10 +125,19 @@ class AsaasService {
     // Chave de API da Asaas configurada - USAR DO .ENV
     this.apiKey = process.env.ASAAS_API_KEY || "";
     
+    // Log detalhado para debug - MODO PRODUÇÃO
+    console.log('🔑 ASAAS Config Check:', {
+      hasEnvKey: !!process.env.ASAAS_API_KEY,
+      keyLength: this.apiKey.length,
+      keyPrefix: this.apiKey.substring(0, 10),
+      isProduction: process.env.NODE_ENV === 'production'
+    });
+    
     if (!this.apiKey) {
       console.error('❌ ASAAS_API_KEY não configurada no .env');
+      throw new Error('ASAAS_API_KEY é obrigatória');
     } else {
-      console.log('✅ ASAAS_API_KEY carregada:', this.apiKey.substring(0, 15) + '...');
+      console.log('✅ ASAAS_API_KEY carregada com sucesso');
     }
     
     // URL base da API do Asaas (API v3 atualizada)
@@ -150,7 +159,48 @@ class AsaasService {
         'Content-Type': 'application/json',
         'User-Agent': 'BuscaAquiBDC/1.0'
       },
+      timeout: 30000 // 30 segundos timeout
     });
+    
+    // Log das chamadas da API para debug
+    this.client.interceptors.request.use(
+      (config) => {
+        console.log('🚀 ASAAS Request:', {
+          method: config.method?.toUpperCase(),
+          url: config.url,
+          hasData: !!config.data,
+          headers: {
+            'access_token': config.headers['access_token'] ? 'SET' : 'MISSING',
+            'Content-Type': config.headers['Content-Type']
+          }
+        });
+        return config;
+      },
+      (error) => {
+        console.error('❌ ASAAS Request Error:', error);
+        return Promise.reject(error);
+      }
+    );
+
+    this.client.interceptors.response.use(
+      (response) => {
+        console.log('✅ ASAAS Response:', {
+          status: response.status,
+          url: response.config.url,
+          dataKeys: Object.keys(response.data || {})
+        });
+        return response;
+      },
+      (error) => {
+        console.error('❌ ASAAS Response Error:', {
+          status: error.response?.status,
+          message: error.message,
+          url: error.config?.url,
+          data: error.response?.data
+        });
+        return Promise.reject(error);
+      }
+    );
   }
 
   /**

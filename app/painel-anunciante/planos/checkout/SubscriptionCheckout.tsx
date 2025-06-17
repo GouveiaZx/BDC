@@ -47,55 +47,34 @@ export default function SubscriptionCheckout({
   const isPaidPlan = planId !== SubscriptionPlan.FREE;
   
   useEffect(() => {
-    // Verificar se usuário está autenticado
-    if (!isAuthenticated || !userId) {
-      console.log('❌ Usuário não autenticado, redirecionando para login');
-      router.push('/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search));
-      return;
+    // Verificar se é um upgrade (não deve mostrar trial)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isUpgrade = urlParams.get('upgrade') === 'true' || 
+                     document.referrer.includes('painel-anunciante') ||
+                     window.location.pathname.includes('painel-anunciante');
+    
+    if (isUpgrade) {
+      console.log('🔄 Upgrade detectado - Trial desabilitado');
+      setTrialEligible(false);
+    } else {
+      // Para novos usuários, verificar trial apenas se o plano permite
+      const checkTrialEligibility = async () => {
+        if (userId && planId !== SubscriptionPlan.FREE) {
+          const eligible = await isEligibleForTrial(userId);
+          setTrialEligible(eligible);
+          
+          if (eligible) {
+            const endDate = calculateTrialEndDate(planId as SubscriptionPlan);
+            setTrialEndDate(endDate);
+          }
+        }
+      };
+      
+      checkTrialEligibility();
     }
     
-    // Buscar dados do usuário via API
-    const fetchUserProfile = async () => {
-      try {
-        if (!userId) {
-          setError('Erro: Usuário não autenticado. Faça login novamente.');
-          return;
-        }
-
-        const response = await fetch(`/api/users/profile?userId=${userId}`);
-        
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Erro ao buscar perfil do usuário');
-        }
-
-        const data = await response.json();
-        // A API retorna { success: true, profile: {...} }
-        if (data.success && data.profile) {
-          setUserProfile(data.profile);
-        } else {
-          setUserProfile(data); // Fallback para compatibilidade
-        }
-      } catch (error) {
-        console.error('Erro ao buscar perfil do usuário:', error);
-        setError(`Erro ao carregar perfil: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      }
-    };
-    
-    // Verificar elegibilidade para trial
-    const checkTrialEligibility = async () => {
-      const eligible = await isEligibleForTrial(userId);
-      setTrialEligible(eligible);
-      
-      if (eligible && planId) {
-        const endDate = calculateTrialEndDate(planId as SubscriptionPlan);
-        setTrialEndDate(endDate);
-      }
-    };
-    
-    fetchUserProfile();
-    checkTrialEligibility();
-  }, [planId, userId, isAuthenticated, router]);
+    setLoading(false);
+  }, [planId, userId]);
 
   // Formatação de cartão de crédito
   const formatCardNumber = (value: string) => {
@@ -582,21 +561,21 @@ export default function SubscriptionCheckout({
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h1 className="text-2xl font-bold">Finalizar Assinatura</h1>
+                    <h1 className="text-2xl font-bold text-white">Finalizar Assinatura</h1>
                     <p className="text-blue-100 mt-1">Complete sua assinatura em instantes</p>
                   </div>
                   <div className="bg-white/20 rounded-full p-3">
-                    <FaShieldAlt className="text-2xl" />
+                    <FaShieldAlt className="text-2xl text-white" />
                   </div>
                 </div>
               </div>
 
               {/* Conteúdo do Form */}
-              <div className="p-8">
+              <div className="p-8 bg-white">
                 {!paymentProcessed && !success && !showCategoriesSelector && (
                   <div className="space-y-8">
                     
-                    {/* Trial Notice */}
+                    {/* Trial Notice - Só mostra se trial está ativo */}
                     {trialEligible && (
                       <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
                         <div className="flex items-start">
@@ -883,9 +862,9 @@ export default function SubscriptionCheckout({
           {/* Sidebar - Resumo do Plano */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden sticky top-8">
-              <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-6 text-white">
+              <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-6">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-bold">{planName}</h3>
+                  <h3 className="text-xl font-bold text-white">{planName}</h3>
                   <div className="bg-white/20 rounded-full p-2">
                     <FaCrown className="text-yellow-300 text-lg" />
                   </div>
@@ -901,14 +880,14 @@ export default function SubscriptionCheckout({
                     </p>
                   </div>
                 ) : (
-                  <div className="text-3xl font-bold">
+                  <div className="text-3xl font-bold text-white">
                     R$ {planPrice.toFixed(2).replace('.', ',')}
                     <span className="text-lg font-normal text-gray-300">/mês</span>
                   </div>
                 )}
               </div>
               
-              <div className="p-6">
+              <div className="p-6 bg-white">
                 <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
                   <FaCheckCircle className="mr-2 text-green-500" />
                   Incluído no plano:
@@ -917,18 +896,18 @@ export default function SubscriptionCheckout({
                   {planFeatures.map((feature, index) => (
                     <div key={index} className="flex items-start space-x-3">
                       <FaCheckCircle className="text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm text-gray-600">{feature}</span>
+                      <span className="text-sm text-gray-700">{feature}</span>
                     </div>
                   ))}
                 </div>
               </div>
               
               <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 border-t">
-                <div className="flex items-center justify-center space-x-3 text-sm text-gray-600">
+                <div className="flex items-center justify-center space-x-3 text-sm text-gray-700">
                   <FaShieldAlt className="text-green-500 text-lg" />
                   <span className="font-medium">Pagamento 100% seguro e criptografado</span>
                 </div>
-                <div className="flex items-center justify-center space-x-2 mt-3 text-xs text-gray-500">
+                <div className="flex items-center justify-center space-x-2 mt-3 text-xs text-gray-600">
                   <span>🔒 SSL</span>
                   <span>•</span>
                   <span>256-bit</span>
