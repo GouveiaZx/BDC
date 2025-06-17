@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Importar dinamicamente o serviço ASAAS
-      const { default: asaas } = await import('../../../lib/asaas');
+      const { default: asaas } = await import('../../../../lib/asaas');
       
       // CRIAR CLIENTE REAL NO ASAAS
       console.log('👤 Criando cliente no ASAAS...');
@@ -218,7 +218,7 @@ export async function PUT(request: NextRequest) {
 
     try {
       // Importar dinamicamente o serviço ASAAS
-      const { default: asaas } = await import('../../../lib/asaas');
+      const { default: asaas } = await import('../../../../lib/asaas');
       
       // Atualizar no ASAAS
       const asaasCustomer = await asaas.updateCustomer(existingCustomer.asaas_customer_id, asaasUpdateData);
