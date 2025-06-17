@@ -102,8 +102,8 @@ export class AsaasClient {
   constructor(config: AsaasConfig) {
     this.config = config;
     
-    // Limpar a chave API removendo prefixos desnecessários
-    const cleanApiKey = config.apiKey.startsWith('$aact_') ? config.apiKey : `$aact_${config.apiKey}`;
+    // Usar a chave API como fornecida (já inclui prefixo se necessário)
+    const cleanApiKey = config.apiKey;
     
     this.client = axios.create({
       baseURL: config.apiUrl,
