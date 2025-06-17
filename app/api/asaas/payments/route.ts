@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import asaas from '../../../lib/asaas';
 
 /**
  * API Route para gerenciar pagamentos Asaas via backend
@@ -7,6 +6,9 @@ import asaas from '../../../lib/asaas';
 
 export async function GET(request: NextRequest) {
   try {
+    // Importar dinamicamente o serviço ASAAS
+    const { default: asaas } = await import('../../../lib/asaas');
+    
     const { searchParams } = new URL(request.url);
     const subscriptionId = searchParams.get('subscriptionId');
     const paymentId = searchParams.get('paymentId');
@@ -115,6 +117,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Importar dinamicamente o serviço ASAAS
+    const { default: asaas } = await import('../../../lib/asaas');
+    
     const paymentData = await request.json();
     const payment = await asaas.createPayment(paymentData);
     

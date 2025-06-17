@@ -167,50 +167,50 @@ class AsaasService {
         },
         timeout: 30000 // 30 segundos timeout
       });
-    } else {
-      // Client vazio para evitar erros durante o build
-      this.client = {} as AxiosInstance;
-    }
-    
-    // Log das chamadas da API para debug
-    this.client.interceptors.request.use(
-      (config) => {
-        console.log('🚀 ASAAS Request:', {
-          method: config.method?.toUpperCase(),
-          url: config.url,
-          hasData: !!config.data,
-          headers: {
-            'access_token': config.headers['access_token'] ? 'SET' : 'MISSING',
-            'Content-Type': config.headers['Content-Type']
-          }
-        });
-        return config;
-      },
-      (error) => {
-        console.error('❌ ASAAS Request Error:', error);
-        return Promise.reject(error);
-      }
-    );
+      
+      // Log das chamadas da API para debug - apenas se client estiver configurado
+      this.client.interceptors.request.use(
+        (config) => {
+          console.log('🚀 ASAAS Request:', {
+            method: config.method?.toUpperCase(),
+            url: config.url,
+            hasData: !!config.data,
+            headers: {
+              'access_token': config.headers['access_token'] ? 'SET' : 'MISSING',
+              'Content-Type': config.headers['Content-Type']
+            }
+          });
+          return config;
+        },
+        (error) => {
+          console.error('❌ ASAAS Request Error:', error);
+          return Promise.reject(error);
+        }
+      );
 
-    this.client.interceptors.response.use(
-      (response) => {
-        console.log('✅ ASAAS Response:', {
-          status: response.status,
-          url: response.config.url,
-          dataKeys: Object.keys(response.data || {})
-        });
-        return response;
-      },
-      (error) => {
-        console.error('❌ ASAAS Response Error:', {
-          status: error.response?.status,
-          message: error.message,
-          url: error.config?.url,
-          data: error.response?.data
-        });
-        return Promise.reject(error);
-      }
-    );
+      this.client.interceptors.response.use(
+        (response) => {
+          console.log('✅ ASAAS Response:', {
+            status: response.status,
+            url: response.config.url,
+            dataKeys: Object.keys(response.data || {})
+          });
+          return response;
+        },
+        (error) => {
+          console.error('❌ ASAAS Response Error:', {
+            status: error.response?.status,
+            message: error.message,
+            url: error.config?.url,
+            data: error.response?.data
+          });
+          return Promise.reject(error);
+        }
+      );
+    } else {
+      // Client null para evitar erros durante o build
+      this.client = null as any;
+    }
   }
 
   /**
