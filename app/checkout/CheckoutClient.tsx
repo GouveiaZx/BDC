@@ -4,7 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react'; // Adicionar Suspe
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { FaCreditCard, FaBarcode, FaLock, FaClock, FaCheckCircle, FaArrowLeft, FaShieldAlt, FaArrowUp } from 'react-icons/fa';
+import { FaCreditCard, FaBarcode, FaLock, FaClock, FaCheckCircle, FaArrowLeft, FaShieldAlt, FaArrowUp, FaStar, FaInfoCircle, FaUser, FaEnvelope, FaPhone, FaMapMarkerAlt } from 'react-icons/fa';
 import { useSubscription } from '../lib/subscriptionContext';
 import { SubscriptionPlan } from '../models/types';
 
@@ -15,6 +15,7 @@ interface PlanType {
   price: number;
   description: string;
   features: string[];
+  popular?: boolean;
 }
 
 type PaymentMethod = 'credit_card' | 'boleto' | 'pix';
@@ -31,7 +32,7 @@ export default function CheckoutClient({ plans, initialPlanId }: CheckoutClientP
   // Estados do formulário
   const [step, setStep] = useState<1 | 2>(1); // 1: seleção/dados, 2: confirmação/pagamento
   const [selectedPlan, setSelectedPlan] = useState<PlanType | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('credit_card');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
   const [loading, setLoading] = useState(false); // Renomeado de 'processing' para 'loading' para consistência
   const [formData, setFormData] = useState({
     cardNumber: '',
@@ -294,285 +295,404 @@ export default function CheckoutClient({ plans, initialPlanId }: CheckoutClientP
   }
 
   return (
-    <main className="container mx-auto py-16 px-4 max-w-6xl">
-      {/* Indicador de passos - Nova versão simplificada */}
-      <div className="max-w-3xl mx-auto mb-12">
-        <div className="flex items-center justify-center">
-          <div className={`flex flex-col items-center ${step === 1 ? 'text-primary' : 'text-gray-400'}`}>
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${step === 1 ? 'border-primary bg-primary/10' : step > 1 ? 'border-green-500 bg-green-500/10' : 'border-gray-300'}`}>
-              {step > 1 ? <FaCheckCircle className="text-green-500" /> : <span className="font-medium">1</span>}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <button 
+              onClick={() => router.back()}
+              className="flex items-center text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <FaArrowLeft className="mr-2" />
+              Voltar
+            </button>
+            <div className="flex items-center space-x-2">
+              <FaLock className="text-green-600" />
+              <span className="text-sm text-gray-600">Pagamento Seguro</span>
             </div>
-            <span className="mt-2 font-medium text-sm">Dados e Pagamento</span>
-          </div>
-          
-          <div className={`w-24 h-0.5 mx-2 ${step === 1 ? 'bg-gray-300' : 'bg-green-500'}`}></div>
-          
-          <div className={`flex flex-col items-center ${step === 2 ? 'text-primary' : 'text-gray-400'}`}>
-            <div className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${step === 2 ? 'border-primary bg-primary/10' : 'border-gray-300'}`}>
-              <span className="font-medium">2</span>
-            </div>
-            <span className="mt-2 font-medium text-sm">Confirmação</span>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        {/* Coluna principal (Formulário) */}
-        <div className="lg:col-span-2">
-          {/* Botão Voltar (apenas no passo 2) */}
-          {step === 2 && (
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6 font-medium"
-            >
-              <FaArrowLeft className="mr-2" />
-              Voltar para dados e pagamento
-            </button>
-          )}
-
-          {step === 1 && (
-            <>
-              {/* Seleção de Plano */}
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold mb-5 text-gray-900">Selecione seu plano</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {plans.map((plan) => (
-                    <div
-                      key={plan.id}
-                      onClick={() => handlePlanSelect(plan)}
-                      className={`p-6 border rounded-lg cursor-pointer transition-all duration-200 ${
-                        selectedPlan?.id === plan.id ? 'border-primary ring-2 ring-primary bg-primary/5' : 'border-gray-300 hover:border-gray-400 hover:shadow-sm'
-                      }`}
-                    >
-                      <h3 className="font-bold text-lg text-gray-900 mb-1">{plan.name}</h3>
-                      <p className="text-gray-600 text-sm mb-3">{plan.description}</p>
-                      <p className="text-2xl font-bold text-primary mb-4">R$ {plan.price.toFixed(2).replace('.', ',')} <span className='text-sm text-gray-500 font-normal'>/mês</span></p>
-                      <ul className="space-y-2">
-                        {plan.features.map((feature, index) => (
-                           <li key={index} className="flex items-start text-xs text-gray-600">
-                            <FaCheckCircle className="text-green-500 mt-0.5 mr-2 flex-shrink-0 text-sm" />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Método de Pagamento */}
-              <div className="mb-8">
-                <h2 className="text-2xl font-semibold mb-5 text-gray-900">Método de pagamento</h2>
-                <div className="flex space-x-4 border border-gray-200 rounded-lg p-2 bg-gray-50">
-                  <button
-                    type="button"
-                    onClick={() => handlePaymentMethodSelect('credit_card')}
-                    className={`flex-1 py-3 px-4 rounded-md flex items-center justify-center text-sm font-medium transition-colors ${
-                      paymentMethod === 'credit_card' ? 'bg-primary text-white shadow' : 'bg-white text-gray-700 hover:bg-gray-100'
-                    }`}
-                  >
-                    <FaCreditCard className="mr-2" /> Cartão de Crédito
-                  </button>
-                  {/* Outros métodos podem ser adicionados aqui */}
-                </div>
-              </div>
-
-              {/* Dados do Cartão */}
-              {paymentMethod === 'credit_card' && (
-                <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-white">
-                  <h3 className="text-lg font-medium mb-5 text-gray-800">Dados do Cartão de Crédito</h3>
-                  <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
-                    <div className="sm:col-span-6 relative">
-                      <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700">Número do Cartão</label>
-                      <input
-                        type="text"
-                        name="cardNumber"
-                        id="cardNumber"
-                        value={formData.cardNumber}
-                        onChange={handleCardNumberChange}
-                        maxLength={19} // 16 digits + 3 spaces
-                        placeholder="0000 0000 0000 0000"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm pr-10"
-                        required
-                      />
-                      <FaCreditCard className="absolute right-3 top-8 text-gray-400"/>
-                    </div>
-
-                    <div className="sm:col-span-6">
-                      <label htmlFor="cardName" className="block text-sm font-medium text-gray-700">Nome no Cartão</label>
-                      <input
-                        type="text"
-                        name="cardName"
-                        id="cardName"
-                        value={formData.cardName}
-                        onChange={handleInputChange}
-                        placeholder="Nome como impresso no cartão"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                        required
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3">
-                      <label htmlFor="cardExpiry" className="block text-sm font-medium text-gray-700">Validade (MM/AA)</label>
-                      <input
-                        type="text"
-                        name="cardExpiry"
-                        id="cardExpiry"
-                        value={formData.cardExpiry}
-                        onChange={handleExpiryChange}
-                        maxLength={5} // MM/YY
-                        placeholder="MM/AA"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm"
-                        required
-                      />
-                    </div>
-
-                    <div className="sm:col-span-3 relative">
-                      <label htmlFor="cardCvv" className="block text-sm font-medium text-gray-700">CVV</label>
-                      <input
-                        type="text"
-                        name="cardCvv"
-                        id="cardCvv"
-                        value={formData.cardCvv}
-                        onChange={handleInputChange}
-                        maxLength={4}
-                        placeholder="Código de segurança"
-                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm pr-10"
-                        required
-                      />
-                      <FaLock className="absolute right-3 top-8 text-gray-400"/>
-                    </div>
-
-                    <div className="sm:col-span-6">
-                      <label htmlFor="installments" className="block text-sm font-medium text-gray-700">Parcelas</label>
-                      <select
-                        id="installments"
-                        name="installments"
-                        value={formData.installments}
-                        onChange={handleInputChange}
-                        className="mt-1 block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-primary focus:outline-none focus:ring-primary sm:text-sm"
-                      >
-                        <option value="1">1x de R$ {selectedPlan.price.toFixed(2).replace('.', ',')} (à vista)</option>
-                        {/* Adicionar mais opções de parcelamento se necessário */}
-                      </select>
-                    </div>
-
-                    <div className="sm:col-span-6">
-                      <div className="flex items-center">
-                        <input
-                          id="saveCard"
-                          name="saveCard"
-                          type="checkbox"
-                          checked={formData.saveCard}
-                          onChange={handleInputChange}
-                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                        />
-                        <label htmlFor="saveCard" className="ml-2 block text-sm text-gray-900">Salvar cartão para futuras compras</label>
-                      </div>
-                    </div>
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        <div className="grid lg:grid-cols-3 gap-8">
+          
+          {/* Coluna Principal - Formulário */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
+              
+              {/* Progress Bar */}
+              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6">
+                <div className="flex justify-between items-center text-white">
+                  <h1 className="text-2xl font-bold">Finalizar Assinatura</h1>
+                  <div className="flex space-x-2">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      step >= 1 ? 'bg-white text-blue-600' : 'bg-blue-500 text-white'
+                    }`}>1</div>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                      step >= 2 ? 'bg-white text-blue-600' : 'bg-blue-500/50 text-white/70'
+                    }`}>2</div>
                   </div>
                 </div>
-              )}
-
-              {/* Dados Pessoais e Endereço */}
-              <div className="mb-8 p-6 border border-gray-200 rounded-lg bg-white">
-                 <h3 className="text-lg font-medium mb-5 text-gray-800">Seus Dados</h3>
-                 <div className="grid grid-cols-1 gap-y-4 gap-x-4 sm:grid-cols-6">
-                   <div className="sm:col-span-6">
-                      <label htmlFor="cpfCnpj" className="block text-sm font-medium text-gray-700">CPF/CNPJ</label>
-                      <input type="text" name="cpfCnpj" id="cpfCnpj" value={formData.cpfCnpj} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required />
-                   </div>
-                   <div className="sm:col-span-6">
-                      <label htmlFor="address" className="block text-sm font-medium text-gray-700">Endereço</label>
-                      <input type="text" name="address" id="address" value={formData.address} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required />
-                   </div>
-                    <div className="sm:col-span-2">
-                      <label htmlFor="city" className="block text-sm font-medium text-gray-700">Cidade</label>
-                      <input type="text" name="city" id="city" value={formData.city} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required />
-                   </div>
-                   <div className="sm:col-span-2">
-                      <label htmlFor="state" className="block text-sm font-medium text-gray-700">Estado</label>
-                      <input type="text" name="state" id="state" value={formData.state} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required />
-                   </div>
-                   <div className="sm:col-span-2">
-                      <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700">CEP</label>
-                      <input type="text" name="zipCode" id="zipCode" value={formData.zipCode} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary focus:ring-primary sm:text-sm" required />
-                   </div>
-                 </div>
+                <div className="mt-4">
+                  <div className="flex justify-between text-sm text-blue-100">
+                    <span>Dados do Pagamento</span>
+                    <span>Confirmação</span>
+                  </div>
+                  <div className="mt-2 bg-blue-500/30 rounded-full h-2">
+                    <div className={`bg-white rounded-full h-2 transition-all duration-500 ${
+                      step === 1 ? 'w-1/2' : 'w-full'
+                    }`}></div>
+                  </div>
+                </div>
               </div>
 
-              {/* Termos e Botão */}
-              <div className="flex items-center mb-6">
-                <input
-                  id="agreeTerms"
-                  name="agreeTerms"
-                  type="checkbox"
-                  checked={formData.agreeTerms}
-                  onChange={handleInputChange}
-                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                  required
-                />
-                <label htmlFor="agreeTerms" className="ml-2 block text-sm text-gray-900">
-                  Eu li e concordo com os <Link href="/termos" className="font-medium text-primary hover:underline">Termos e Condições</Link> e a <Link href="/privacidade" className="font-medium text-primary hover:underline">Política de Privacidade</Link>.
-                </label>
-              </div>
+              {/* Form Content */}
+              <div className="p-8">
+                {step === 1 && (
+                  <div className="space-y-8">
+                    
+                    {/* Método de Pagamento */}
+                    <div>
+                      <h2 className="text-xl font-semibold mb-4 text-gray-900">Escolha sua forma de pagamento</h2>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        
+                        {/* PIX */}
+                        <button
+                          type="button"
+                          onClick={() => handlePaymentMethodSelect('pix')}
+                          className={`relative p-6 rounded-xl border-2 transition-all duration-200 ${
+                            paymentMethod === 'pix' 
+                              ? 'border-green-500 bg-green-50 shadow-lg transform scale-105' 
+                              : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${
+                              paymentMethod === 'pix' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                                <path d="M12 6v6l4 2"/>
+                              </svg>
+                            </div>
+                            <h3 className="font-semibold text-gray-900">PIX</h3>
+                            <p className="text-sm text-gray-600 mt-1">Pagamento instantâneo</p>
+                            {paymentMethod === 'pix' && (
+                              <div className="absolute -top-2 -right-2">
+                                <FaCheckCircle className="text-green-500 text-xl" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
 
-              <button
-                type="submit"
-                disabled={loading || !formData.agreeTerms}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Processando...' : 'Continuar para Confirmação'}
-              </button>
-            </>
-          )}
+                        {/* Cartão de Crédito */}
+                        <button
+                          type="button"
+                          onClick={() => handlePaymentMethodSelect('credit_card')}
+                          className={`relative p-6 rounded-xl border-2 transition-all duration-200 ${
+                            paymentMethod === 'credit_card' 
+                              ? 'border-blue-500 bg-blue-50 shadow-lg transform scale-105' 
+                              : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${
+                              paymentMethod === 'credit_card' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              <FaCreditCard className="w-6 h-6" />
+                            </div>
+                            <h3 className="font-semibold text-gray-900">Cartão</h3>
+                            <p className="text-sm text-gray-600 mt-1">Crédito ou débito</p>
+                            {paymentMethod === 'credit_card' && (
+                              <div className="absolute -top-2 -right-2">
+                                <FaCheckCircle className="text-blue-500 text-xl" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
 
-          {step === 2 && (
-             <div className="bg-white p-8 rounded-lg shadow-md border border-gray-200">
-               <h2 className="text-2xl font-semibold mb-6 text-gray-900">Confirme sua Assinatura</h2>
-               <p className="text-gray-700 mb-6">
-                 Revise os detalhes do seu pedido e confirme a assinatura do plano <span className="font-medium">{selectedPlan.name}</span>.
-               </p>
+                        {/* Boleto */}
+                        <button
+                          type="button"
+                          onClick={() => handlePaymentMethodSelect('boleto')}
+                          className={`relative p-6 rounded-xl border-2 transition-all duration-200 ${
+                            paymentMethod === 'boleto' 
+                              ? 'border-orange-500 bg-orange-50 shadow-lg transform scale-105' 
+                              : 'border-gray-200 hover:border-gray-300 hover:shadow-md'
+                          }`}
+                        >
+                          <div className="text-center">
+                            <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${
+                              paymentMethod === 'boleto' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6z"/>
+                                <path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/>
+                              </svg>
+                            </div>
+                            <h3 className="font-semibold text-gray-900">Boleto</h3>
+                            <p className="text-sm text-gray-600 mt-1">Vencimento em 3 dias</p>
+                            {paymentMethod === 'boleto' && (
+                              <div className="absolute -top-2 -right-2">
+                                <FaCheckCircle className="text-orange-500 text-xl" />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      </div>
+                    </div>
 
-                {/* Detalhes do pagamento (exemplo) */}
-               <div className="mb-6 border-t border-b border-gray-200 py-4">
-                 <h3 className="font-medium text-gray-800 mb-2">Pagamento com</h3>
-                 {paymentMethod === 'credit_card' && (
-                   <div className="flex items-center text-gray-600">
-                     <FaCreditCard className="mr-2"/>
-                     <span>Cartão de Crédito terminando em {formData.cardNumber.slice(-4)}</span>
-                   </div>
-                 )}
-                  {/* Adicionar outros métodos aqui */}
-               </div>
+                    {/* Dados do Cartão - Só aparece se cartão selecionado */}
+                    {paymentMethod === 'credit_card' && (
+                      <div className="bg-gray-50 rounded-xl p-6">
+                        <h3 className="text-lg font-semibold mb-4 text-gray-900">Dados do Cartão</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="md:col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Número do cartão *
+                            </label>
+                            <div className="relative">
+                              <input
+                                type="text"
+                                name="cardNumber"
+                                value={formData.cardNumber}
+                                onChange={handleInputChange}
+                                placeholder="0000 0000 0000 0000"
+                                className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
+                                maxLength={19}
+                              />
+                              <FaCreditCard className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            </div>
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Nome no cartão *
+                            </label>
+                            <input
+                              type="text"
+                              name="cardName"
+                              value={formData.cardName}
+                              onChange={handleInputChange}
+                              placeholder="Nome como está no cartão"
+                              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Validade *
+                              </label>
+                              <input
+                                type="text"
+                                name="cardExpiry"
+                                value={formData.cardExpiry}
+                                onChange={handleExpiryChange}
+                                placeholder="MM/AA"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                maxLength={5}
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                CVV *
+                              </label>
+                              <input
+                                type="text"
+                                name="cardCvv"
+                                value={formData.cardCvv}
+                                onChange={handleInputChange}
+                                placeholder="000"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                maxLength={4}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-               <p className="text-sm text-gray-600 mb-6">
-                 Clicando em "Assinar Agora", você concorda em iniciar sua assinatura imediatamente.
-                 A cobrança de R$ {selectedPlan.price.toFixed(2).replace('.', ',')} será realizada no método de pagamento selecionado.
-                 A assinatura será renovada automaticamente a cada mês, a menos que seja cancelada.
-               </p>
+                    {/* Dados Pessoais */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900">Dados de Cobrança</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            CPF/CNPJ *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              name="cpfCnpj"
+                              value={formData.cpfCnpj}
+                              onChange={handleInputChange}
+                              placeholder="000.000.000-00"
+                              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <FaUser className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            CEP *
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              name="zipCode"
+                              value={formData.zipCode}
+                              onChange={handleInputChange}
+                              placeholder="00000-000"
+                              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <FaMapMarkerAlt className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          </div>
+                        </div>
 
-               <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-base font-medium text-white bg-primary hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  'Assinar Agora'
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Endereço *
+                          </label>
+                          <input
+                            type="text"
+                            name="address"
+                            value={formData.address}
+                            onChange={handleInputChange}
+                            placeholder="Rua, número, complemento"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Cidade *
+                          </label>
+                          <input
+                            type="text"
+                            name="city"
+                            value={formData.city}
+                            onChange={handleInputChange}
+                            placeholder="Sua cidade"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Estado *
+                          </label>
+                          <input
+                            type="text"
+                            name="state"
+                            value={formData.state}
+                            onChange={handleInputChange}
+                            placeholder="Estado"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Termos */}
+                    <div className="border-t pt-6">
+                      <label className="flex items-start space-x-3">
+                        <input
+                          type="checkbox"
+                          name="agreeTerms"
+                          checked={formData.agreeTerms}
+                          onChange={handleInputChange}
+                          className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        />
+                        <span className="text-sm text-gray-600">
+                          Concordo com os <a href="/termos" className="text-blue-600 hover:underline">Termos de Uso</a> e 
+                          <a href="/privacidade" className="text-blue-600 hover:underline"> Política de Privacidade</a>
+                        </span>
+                      </label>
+                    </div>
+
+                    {/* Botão Continuar */}
+                    <div className="flex justify-end pt-6">
+                      <button
+                        onClick={handleSubmit}
+                        disabled={!formData.agreeTerms}
+                        className="px-8 py-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
+                      >
+                        Continuar para Confirmação
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
-             </div>
-          )}
-        </div>
 
-        {/* Coluna lateral (Resumo do Pedido) */}
-        <div className="lg:col-span-1">
-          <OrderSummary />
+                {step === 2 && (
+                  <div className="text-center space-y-8">
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-8">
+                      <FaCheckCircle className="text-green-500 text-4xl mx-auto mb-4" />
+                      <h2 className="text-2xl font-bold text-gray-900 mb-2">Pedido Confirmado!</h2>
+                      <p className="text-gray-600">
+                        Sua assinatura do plano <strong>{selectedPlan?.name}</strong> foi processada com sucesso.
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={() => router.push('/painel-anunciante')}
+                      className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white font-semibold rounded-xl hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      Ir para o Painel
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sidebar - Resumo do Plano */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden sticky top-8">
+              {selectedPlan && (
+                <>
+                  <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-6 text-white">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xl font-bold">{selectedPlan.name}</h3>
+                      {selectedPlan.popular && (
+                        <span className="bg-yellow-500 text-yellow-900 text-xs px-2 py-1 rounded-full font-bold">
+                          Popular
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-3xl font-bold">
+                      R$ {selectedPlan.price.toFixed(2).replace('.', ',')}
+                      <span className="text-lg font-normal text-gray-300">/mês</span>
+                    </div>
+                  </div>
+                  
+                  <div className="p-6">
+                    <h4 className="font-semibold text-gray-900 mb-4">Incluído no plano:</h4>
+                    <div className="space-y-3">
+                      {selectedPlan.features.map((feature, index) => (
+                        <div key={index} className="flex items-start space-x-3">
+                          <FaCheckCircle className="text-green-500 mt-0.5 flex-shrink-0" />
+                          <span className="text-sm text-gray-600">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gray-50 p-6 border-t">
+                    <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+                      <FaShieldAlt className="text-green-500" />
+                      <span>Pagamento 100% seguro</span>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-      </form>
-    </main>
+      </div>
+    </div>
   );
 } 

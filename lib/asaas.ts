@@ -101,10 +101,14 @@ export class AsaasClient {
 
   constructor(config: AsaasConfig) {
     this.config = config;
+    
+    // Limpar a chave API removendo prefixos desnecessários
+    const cleanApiKey = config.apiKey.startsWith('$aact_') ? config.apiKey : `$aact_${config.apiKey}`;
+    
     this.client = axios.create({
       baseURL: config.apiUrl,
       headers: {
-        'access_token': config.apiKey,
+        'access_token': cleanApiKey,
         'Content-Type': 'application/json',
         'User-Agent': 'BDC-Classificados/1.0'
       },
@@ -119,7 +123,7 @@ export class AsaasClient {
         baseURL: request.baseURL,
         fullURL: `${request.baseURL}${request.url}`,
         headers: {
-          'access_token': request.headers['access_token'] ? '[HIDDEN]' : 'NOT_SET',
+          'access_token': request.headers['access_token'] ? `${request.headers['access_token'].substring(0, 10)}...` : 'NOT_SET',
           'Content-Type': request.headers['Content-Type']
         },
           data: request.data
@@ -146,7 +150,10 @@ export class AsaasClient {
             method: error.config?.method,
             url: error.config?.url,
             baseURL: error.config?.baseURL,
-            fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A'
+            fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A',
+            headers: {
+              'access_token': error.config?.headers?.['access_token'] ? `${error.config.headers['access_token'].substring(0, 10)}...` : 'NOT_SET'
+            }
           }
           });
           return Promise.reject(error);
