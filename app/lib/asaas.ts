@@ -161,7 +161,7 @@ class AsaasService {
       this.client = axios.create({
         baseURL: this.baseUrl,
         headers: {
-          'access_token': this.apiKey,
+          'Authorization': `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
           'User-Agent': 'BuscaAquiBDC/1.0'
         },
@@ -175,10 +175,10 @@ class AsaasService {
             method: config.method?.toUpperCase(),
             url: config.url,
             hasData: !!config.data,
-            headers: {
-              'access_token': config.headers['access_token'] ? 'SET' : 'MISSING',
-              'Content-Type': config.headers['Content-Type']
-            }
+                      headers: {
+            'Authorization': config.headers['Authorization'] ? 'SET' : 'MISSING',
+            'Content-Type': config.headers['Content-Type']
+          }
           });
           return config;
         },
@@ -231,7 +231,7 @@ class AsaasService {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
       "Content-Type": "application/json",
-      "access_token": this.apiKey,
+      "Authorization": `Bearer ${this.apiKey}`,
       "User-Agent": "BuscaAquiBDC-App/1.0"
     };
 
