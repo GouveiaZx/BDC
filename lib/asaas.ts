@@ -105,6 +105,10 @@ export class AsaasClient {
     // Usar a chave API como fornecida (já inclui prefixo se necessário)
     const cleanApiKey = config.apiKey;
     
+    // Logar informações sensíveis para debug (NUNCA deixar em produção)
+    console.log('🔑 [DEBUG] ASAAS_API_KEY (parcial):', cleanApiKey.substring(0, 8) + '...' + cleanApiKey.slice(-8));
+    console.log('🌐 [DEBUG] ASAAS_API_URL:', config.apiUrl);
+    
     this.client = axios.create({
       baseURL: config.apiUrl,
       headers: {
@@ -169,7 +173,10 @@ export class AsaasClient {
       console.log('✅ Cliente criado com sucesso:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('❌ Erro ao criar cliente:', error.response?.data || error.message);
+      // Logar resposta completa do erro
+      console.error('❌ [DEBUG] Erro ao criar cliente - response:', error.response?.data);
+      console.error('❌ [DEBUG] Erro ao criar cliente - headers:', error.response?.headers);
+      console.error('❌ [DEBUG] Erro ao criar cliente - config:', error.config);
       throw new Error(`Erro ao criar cliente no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
     }
   }
