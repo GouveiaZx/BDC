@@ -161,7 +161,7 @@ export default function Planos() {
     if (!isAuthenticated) {
       console.log('❌ Usuário não está logado, redirecionando para login');
       const redirectUrl = `/login?redirect=${encodeURIComponent('/planos')}`;
-      router.push(redirectUrl);
+      window.location.href = redirectUrl;
       return;
     }
 
@@ -174,10 +174,24 @@ export default function Planos() {
       return;
     }
 
-    // Para planos pagos, redirecionar para checkout
+    // Para planos pagos, redirecionar para checkout usando window.location.href
     const checkoutUrl = `/checkout?plan=${plan.id}`;
     console.log('💳 Redirecionando para checkout:', checkoutUrl);
-    router.push(checkoutUrl);
+    
+    // Garantir que o redirecionamento funcione corretamente
+    try {
+      // Salvar o plano selecionado no localStorage para referência
+      localStorage.setItem('selectedPlan', plan.id);
+      localStorage.setItem('selectedPlanName', plan.name);
+      localStorage.setItem('selectedPlanPrice', plan.price.toString());
+      
+      // Usar window.location.href para garantir navegação
+      window.location.href = checkoutUrl;
+    } catch (error) {
+      console.error('Erro ao redirecionar para checkout:', error);
+      // Fallback: tentar com router.push
+      router.push(checkoutUrl);
+    }
   };
 
   // Função para ativar o plano gratuito

@@ -124,19 +124,35 @@ function CheckoutContent() {
           // Garantir que userId seja um UUID válido
           const validUserId = ensureValidUserId(rawUserId);
           
-          // Criar objeto user simulado
-          setUser({
+          // Criar objeto user simulado com dados mais completos
+          const userData = {
             id: validUserId,
             email: userEmail,
-            user_metadata: { full_name: userName || userEmail.split('@')[0] }
-          });
+            user_metadata: { 
+              full_name: userName || userEmail.split('@')[0],
+              cpf_cnpj: localStorage.getItem('userCpf') || localStorage.getItem('userCnpj'),
+              phone: localStorage.getItem('userPhone')
+            }
+          };
+          
+          setUser(userData);
+          
+          // Pré-preencher dados do formulário com informações salvas
+          setCardHolderInfo(prev => ({
+            ...prev,
+            name: userName || userEmail.split('@')[0],
+            email: userEmail,
+            cpfCnpj: localStorage.getItem('userCpf') || localStorage.getItem('userCnpj') || '',
+            phone: localStorage.getItem('userPhone') || ''
+          }));
+          
         } else {
           console.log('🔄 Verificando autenticação via Supabase...');
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) {
             console.log('❌ Usuário não autenticado, redirecionando para login');
             const currentUrl = window.location.pathname + window.location.search;
-            router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`);
+            window.location.href = `/login?redirect=${encodeURIComponent(currentUrl)}`;
             return;
           }
           console.log('✅ Usuário autenticado via Supabase');
@@ -144,16 +160,20 @@ function CheckoutContent() {
         }
       } catch (error) {
         console.error('Erro ao verificar usuário:', error);
-        router.push('/login?redirect=/checkout');
+        window.location.href = '/login?redirect=/checkout';
         return;
       }
     };
 
     checkUser();
 
-    // Verificar se veio um plano específico da URL
-    const plan = searchParams.get('plan');
-    console.log('🎯 Plano da URL:', plan);
+    // Verificar se veio um plano específico da URL ou localStorage
+    let plan = searchParams.get('plan');
+    if (!plan) {
+      plan = localStorage.getItem('selectedPlan');
+    }
+    
+    console.log('🎯 Plano da URL ou localStorage:', plan);
     
     if (plan) {
       // Normalizar o ID do plano para lowercase

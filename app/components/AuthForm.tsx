@@ -212,15 +212,19 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
       newErrors.email = 'E-mail inválido';
     }
     
-    // Validação do CPF obrigatório para pessoa física
+    // CPF obrigatório para pessoas físicas
     if (!formData.cpf.trim()) {
       newErrors.cpf = 'CPF é obrigatório';
-    } else if (!/^\d{3}\.\d{3}\.\d{3}-\d{2}$/.test(formData.cpf)) {
-      newErrors.cpf = 'Formato: 000.000.000-00';
+    } else {
+      // Validar CPF (formato básico)
+      const cpfNumbers = formData.cpf.replace(/\D/g, '');
+      if (cpfNumbers.length !== 11) {
+        newErrors.cpf = 'CPF deve ter 11 dígitos';
+      }
     }
     
-    if (formData.phone && !/^\(\d{2}\) \d{5}-\d{4}$/.test(formData.phone)) {
-      newErrors.phone = 'Formato: (99) 99999-9999';
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Telefone é obrigatório';
     }
     
     setErrors(newErrors);
@@ -234,10 +238,25 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
       newErrors.companyName = 'Nome da empresa é obrigatório';
     }
     
+    // CNPJ obrigatório para empresas
     if (!formData.cnpj.trim()) {
       newErrors.cnpj = 'CNPJ é obrigatório';
-    } else if (formData.cnpj.replace(/\D/g, '').length !== 14) {
-      newErrors.cnpj = 'CNPJ inválido';
+    } else {
+      // Validar CNPJ (formato básico)
+      const cnpjNumbers = formData.cnpj.replace(/\D/g, '');
+      if (cnpjNumbers.length !== 14) {
+        newErrors.cnpj = 'CNPJ deve ter 14 dígitos';
+      }
+    }
+    
+    // CPF do responsável é obrigatório mesmo para empresas
+    if (!formData.cpf.trim()) {
+      newErrors.cpf = 'CPF do responsável é obrigatório';
+    } else {
+      const cpfNumbers = formData.cpf.replace(/\D/g, '');
+      if (cpfNumbers.length !== 11) {
+        newErrors.cpf = 'CPF deve ter 11 dígitos';
+      }
     }
     
     setErrors(newErrors);
@@ -451,6 +470,22 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
               localStorage.setItem('userEmail', formData.email);
               localStorage.setItem('userName', formData.name);
               localStorage.setItem('userId', result.user.id);
+              
+              // Salvar dados específicos do tipo de conta
+              if (accountType === 'personal') {
+                localStorage.setItem('userCpf', formData.cpf.replace(/\D/g, ''));
+                localStorage.setItem('accountType', 'personal');
+              } else {
+                localStorage.setItem('userCnpj', formData.cnpj.replace(/\D/g, ''));
+                localStorage.setItem('userCpf', formData.cpf.replace(/\D/g, '')); // CPF do responsável
+                localStorage.setItem('companyName', formData.companyName);
+                localStorage.setItem('accountType', 'business');
+              }
+              
+              // Salvar telefone se fornecido
+              if (formData.phone) {
+                localStorage.setItem('userPhone', formData.phone);
+              }
               
               // Salvar token de acesso se disponível
               if (result.session?.access_token) {
