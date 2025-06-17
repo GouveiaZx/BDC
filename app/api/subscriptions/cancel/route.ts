@@ -36,21 +36,16 @@ export async function POST(req: NextRequest) {
     }
     
     // Em produção, cancelar assinatura no Asaas
-    // 1. Verificar se o usuário é dono da assinatura
-    const customer = await asaasService.getCustomerByCpfCnpj(userId);
-    
-    if (!customer) {
-      return NextResponse.json({ error: 'Cliente não encontrado no Asaas' }, { status: 404 });
-    }
-    
-    const subscriptions = await asaasService.getCustomerSubscriptions(customer.id);
-    const targetSubscription = subscriptions.find((sub: any) => sub.id === subscriptionId);
-    
-    if (!targetSubscription) {
+    // 1. Buscar informações da assinatura diretamente
+    let targetSubscription;
+    try {
+      targetSubscription = await asaasService.getSubscription(subscriptionId);
+    } catch (error) {
+      console.error('Erro ao buscar assinatura:', error);
       return NextResponse.json({ error: 'Assinatura não encontrada' }, { status: 404 });
     }
     
-    // 2. Cancelar a assinatura (delirateDelete: false para manter ativa até a próxima data de cobrança)
+    // 2. Cancelar a assinatura (manter ativa até a próxima data de cobrança)
     const cancelResult = await asaasService.cancelSubscription(subscriptionId);
     
     // 3. Atualizar status no banco de dados (implementar conforme seu sistema)
@@ -62,7 +57,7 @@ export async function POST(req: NextRequest) {
       subscription: {
         id: subscriptionId,
         status: 'CANCELLED',
-        validUntil: targetSubscription.nextDueDate
+        validUntil: (targetSubscription as any).nextDueDate || null
       }
     });
     
