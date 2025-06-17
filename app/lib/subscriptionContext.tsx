@@ -195,7 +195,7 @@ export const SubscriptionProvider = ({ children, user }: { children: ReactNode, 
       } else {
         // Em produção, consultar API do Asaas
         const safeUser = user as User; // Aqui sabemos que user não é null devido ao check acima
-        const asaasCustomer = await asaasService.getCustomerByCpfCnpj(safeUser.id);
+        // Pular busca automática de cliente ASAAS por enquanto
         
         if (asaasCustomer) {
           const subscriptions = await asaasService.getCustomerSubscriptions(asaasCustomer.id);
