@@ -122,8 +122,15 @@ class AsaasService {
   private isClient: boolean;
 
   constructor() {
-    // Chave de API da Asaas configurada
-    this.apiKey = process.env.ASAAS_API_KEY || "$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OmJkMTdjN2IwLWMxNWEtNDUyOC1hMmIyLWUwODRiOGQ1MzUwNzo6JGFhY2hfMjM1NWMzNGEtZTE1MS00OGYyLThjYzEtYzNhOTMzZjY5MTZh";
+    // Chave de API da Asaas configurada - USAR DO .ENV
+    this.apiKey = process.env.ASAAS_API_KEY || "";
+    
+    if (!this.apiKey) {
+      console.error('❌ ASAAS_API_KEY não configurada no .env');
+    } else {
+      console.log('✅ ASAAS_API_KEY carregada:', this.apiKey.substring(0, 15) + '...');
+    }
+    
     // URL base da API do Asaas (API v3 atualizada)
     this.baseUrl = process.env.ASAAS_API_URL || "https://api.asaas.com/v3";
     
@@ -134,12 +141,14 @@ class AsaasService {
     this.useMock = false;
     
     console.log(`[ASAAS] Modo REAL ativado - ${this.isClient ? 'Cliente (via backend)' : 'Servidor (direto)'}`);
+    console.log(`[ASAAS] Base URL: ${this.baseUrl}`);
 
     this.client = axios.create({
       baseURL: this.baseUrl,
       headers: {
         'access_token': this.apiKey,
         'Content-Type': 'application/json',
+        'User-Agent': 'BuscaAquiBDC/1.0'
       },
     });
   }
