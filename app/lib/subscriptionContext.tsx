@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { SubscriptionPlan, User } from '../models/types';
-import asaasService from '../../lib/asaas';
 import { fetchSubscriptionInfo, planDisplayNames } from './subscriptionHelper';
 
 // Interface para o contexto de assinatura
@@ -193,35 +192,9 @@ export const SubscriptionProvider = ({ children, user }: { children: ReactNode, 
         }
         
       } else {
-        // Em produção, consultar API do Asaas
-        const safeUser = user as User; // Aqui sabemos que user não é null devido ao check acima
-        // Pular busca automática de cliente ASAAS por enquanto
-        
-        if (asaasCustomer) {
-          const subscriptions = await asaasService.getCustomerSubscriptions(asaasCustomer.id);
-          const activeSubscription = subscriptions.find((sub: any) => sub.status === 'ACTIVE');
-          
-          if (activeSubscription) {
-            // Determinar o plano baseado na descrição ou externalReference
-            const planType = await asaasService.getCustomerPlan(asaasCustomer.id);
-            setCurrentPlan(planType);
-            
-            // Obter próximo pagamento
-            const payments = await asaasService.getSubscriptionPayments(activeSubscription.id);
-            const nextPayment = payments.find((pay: any) => pay.status === 'PENDING');
-            
-            setSubscriptionData({
-              id: activeSubscription.id,
-              startDate: new Date(activeSubscription.dateCreated),
-              status: activeSubscription.status,
-              nextPaymentDate: nextPayment ? new Date(nextPayment.dueDate) : undefined
-            });
-          } else {
-            setCurrentPlan(SubscriptionPlan.FREE);
-          }
-        } else {
-          setCurrentPlan(SubscriptionPlan.FREE);
-        }
+        // Em produção, usar plano gratuito por enquanto
+        // TODO: Implementar busca real de assinatura ASAAS quando métodos estiverem prontos
+        setCurrentPlan(SubscriptionPlan.FREE);
       }
     } catch (error) {
       console.error('Erro ao carregar informações de assinatura:', error);
