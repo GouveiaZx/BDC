@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     // Importar dinamicamente o serviço ASAAS
-    const { default: asaas } = await import('../../../lib/asaas');
+    const { default: asaas } = await import('../../../../lib/asaas');
     
     const { searchParams } = new URL(request.url);
     const subscriptionId = searchParams.get('subscriptionId');
@@ -118,7 +118,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Importar dinamicamente o serviço ASAAS
-    const { default: asaas } = await import('../../../lib/asaas');
+    const { default: asaas } = await import('../../../../lib/asaas');
     
     const paymentData = await request.json();
     const payment = await asaas.createPayment(paymentData);

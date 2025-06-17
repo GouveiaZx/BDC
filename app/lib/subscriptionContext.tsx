@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { SubscriptionPlan, User } from '../models/types';
-import asaasService from './asaas';
+import asaasService from '../../lib/asaas';
 import { fetchSubscriptionInfo, planDisplayNames } from './subscriptionHelper';
 
 // Interface para o contexto de assinatura

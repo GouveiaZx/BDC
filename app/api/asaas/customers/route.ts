@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   try {
     // Importar dinamicamente apenas quando necessário
-    const { default: asaasService } = await import('../../../lib/asaas');
+    const { default: asaasService } = await import('../../../../lib/asaas');
     
     const { searchParams } = new URL(request.url);
     const cpfCnpj = searchParams.get('cpfCnpj');
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Importar dinamicamente apenas quando necessário
-    const { default: asaasService } = await import('../../../lib/asaas');
+    const { default: asaasService } = await import('../../../../lib/asaas');
     
     const customerData = await request.json();
     const customer = await asaasService.createCustomer(customerData);

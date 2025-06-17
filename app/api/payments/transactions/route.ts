@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import asaasService from '../../../lib/asaas';
+import asaasService from '../../../../lib/asaas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
