@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import asaas from '../../../../lib/asaas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -119,6 +118,9 @@ export async function POST(request: NextRequest) {
     console.log('💰 Valor do plano:', planValue);
 
     try {
+      // Importar dinamicamente o serviço ASAAS
+      const { default: asaas } = await import('../../../../lib/asaas');
+      
       // CRIAR ASSINATURA REAL NO ASAAS
       console.log('📅 Criando assinatura recorrente no ASAAS...');
       

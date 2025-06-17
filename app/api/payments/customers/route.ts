@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import asaas from '../../../../lib/asaas';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -89,6 +88,9 @@ export async function POST(request: NextRequest) {
     console.log('📋 Dados formatados para ASAAS:', asaasCustomerData);
 
     try {
+      // Importar dinamicamente o serviço ASAAS
+      const { default: asaas } = await import('../../../../lib/asaas');
+      
       // CRIAR CLIENTE REAL NO ASAAS
       console.log('👤 Criando cliente no ASAAS...');
       const asaasCustomer = await asaas.createCustomer(asaasCustomerData);
@@ -215,6 +217,9 @@ export async function PUT(request: NextRequest) {
     });
 
     try {
+      // Importar dinamicamente o serviço ASAAS
+      const { default: asaas } = await import('../../../../lib/asaas');
+      
       // Atualizar no ASAAS
       const asaasCustomer = await asaas.updateCustomer(existingCustomer.asaas_customer_id, asaasUpdateData);
       console.log('✅ Cliente atualizado no ASAAS');

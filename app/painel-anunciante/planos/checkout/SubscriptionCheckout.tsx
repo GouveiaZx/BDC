@@ -47,6 +47,56 @@ export default function SubscriptionCheckout({
   const isPaidPlan = planId !== SubscriptionPlan.FREE;
   
   useEffect(() => {
+    // Carregar dados do usuário
+    const loadUserProfile = async () => {
+      try {
+        if (userId) {
+          // Primeiro tentar obter do localStorage
+          const storedProfile = localStorage.getItem('userProfile');
+          if (storedProfile) {
+            const profileData = JSON.parse(storedProfile);
+            console.log('Perfil carregado do localStorage:', profileData);
+            setUserProfile(profileData);
+          } else {
+            // Se não tem no localStorage, buscar do banco
+            const response = await fetch(`/api/users/profile?userId=${userId}`);
+            if (response.ok) {
+              const data = await response.json();
+              console.log('Perfil carregado da API:', data);
+              setUserProfile(data.profile);
+            } else {
+              // Fallback com dados básicos do localStorage
+              const userEmail = localStorage.getItem('userEmail');
+              const userName = localStorage.getItem('userName');
+              const userPhone = localStorage.getItem('userPhone');
+              
+              const fallbackProfile = {
+                email: userEmail || '',
+                name: userName || '',
+                phone: userPhone || ''
+              };
+              
+              console.log('Usando perfil de fallback:', fallbackProfile);
+              setUserProfile(fallbackProfile);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+        // Fallback final
+        const userEmail = localStorage.getItem('userEmail');
+        const userName = localStorage.getItem('userName');
+        
+        if (userEmail) {
+          setUserProfile({
+            email: userEmail,
+            name: userName || 'Usuário',
+            phone: ''
+          });
+        }
+      }
+    };
+    
     // Verificar se é um upgrade (não deve mostrar trial)
     const urlParams = new URLSearchParams(window.location.search);
     const isUpgrade = urlParams.get('upgrade') === 'true' || 
@@ -72,6 +122,9 @@ export default function SubscriptionCheckout({
       
       checkTrialEligibility();
     }
+    
+    // Carregar perfil do usuário
+    loadUserProfile();
     
     setLoading(false);
   }, [planId, userId]);
@@ -109,19 +162,30 @@ export default function SubscriptionCheckout({
     setError('');
 
     try {
-      // PASSO 1: Criar/verificar cliente no ASAAS
-      console.log('👤 Criando cliente no ASAAS...');
-      
+      // PASSO 1: Validações iniciais
       if (!userId) {
         setError('Erro: Usuário não autenticado. Faça login novamente.');
+        setLoading(false);
+        return;
+      }
+      
+      // Verificar se o perfil foi carregado
+      if (!userProfile) {
+        setError('Erro: Dados do usuário não carregados. Recarregue a página e tente novamente.');
+        setLoading(false);
         return;
       }
       
       // Verificar se temos pelo menos email
       if (!userProfile.email) {
         setError('Erro: Email do usuário não encontrado. Complete seu perfil primeiro.');
+        setLoading(false);
         return;
       }
+      
+      // PASSO 2: Criar/verificar cliente no ASAAS
+      console.log('👤 Criando cliente no ASAAS...');
+      console.log('📧 Email do usuário:', userProfile.email);
       
       const customerResponse = await fetch('/api/payments/customers', {
         method: 'POST',

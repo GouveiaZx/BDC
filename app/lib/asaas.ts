@@ -156,15 +156,21 @@ class AsaasService {
     console.log(`[ASAAS] Modo REAL ativado - ${this.isClient ? 'Cliente (via backend)' : 'Servidor (direto)'}`);
     console.log(`[ASAAS] Base URL: ${this.baseUrl}`);
 
-    this.client = axios.create({
-      baseURL: this.baseUrl,
-      headers: {
-        'access_token': this.apiKey,
-        'Content-Type': 'application/json',
-        'User-Agent': 'BuscaAquiBDC/1.0'
-      },
-      timeout: 30000 // 30 segundos timeout
-    });
+    // Criar client apenas se a API key estiver presente
+    if (this.apiKey) {
+      this.client = axios.create({
+        baseURL: this.baseUrl,
+        headers: {
+          'access_token': this.apiKey,
+          'Content-Type': 'application/json',
+          'User-Agent': 'BuscaAquiBDC/1.0'
+        },
+        timeout: 30000 // 30 segundos timeout
+      });
+    } else {
+      // Client vazio para evitar erros durante o build
+      this.client = {} as AxiosInstance;
+    }
     
     // Log das chamadas da API para debug
     this.client.interceptors.request.use(
