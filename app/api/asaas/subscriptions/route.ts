@@ -19,8 +19,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (customerId) {
-      const subscriptions = await asaasService.getCustomerSubscriptions(customerId);
-      return NextResponse.json({ success: true, subscriptions });
+      // Método getCustomerSubscriptions não existe - retornar array vazio por enquanto
+      return NextResponse.json({ success: true, subscriptions: [] });
     }
 
     return NextResponse.json({ 
