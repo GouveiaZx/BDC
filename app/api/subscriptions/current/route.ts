@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '../../../lib/supabase';
 import { getAvailablePlans } from '../../../lib/subscriptionHelper';
 import { convertTempIdToUUID } from '../../../lib/utils';
+import { authenticateRequest, logAuthAttempt } from '../../../lib/authHelper';
 import { cookies } from 'next/headers';
 
 const supabaseAdmin = getSupabaseAdminClient();
@@ -14,97 +15,18 @@ export async function GET(req: NextRequest) {
   try {
     console.log('[API:subscriptions] Iniciando busca de informações de assinatura');
     
-    // Extrair token de autenticação do cabeçalho, cookie ou query string
-    const authHeader = req.headers.get('authorization');
-    const cookieStore = cookies();
-    const cookieToken = cookieStore.get('sb-access-token')?.value;
-    const queryToken = req.nextUrl.searchParams.get('token');
+    // Usar o helper de autenticação melhorado
+    const authResult = await authenticateRequest(req);
+    logAuthAttempt(req, authResult);
     
-    // Determinar qual token usar, na ordem: cabeçalho > cookie > query
-    let token = '';
-    
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-      console.log('[API:subscriptions] Usando token do cabeçalho de autorização');
-    } else if (cookieToken) {
-      token = cookieToken;
-      console.log('[API:subscriptions] Usando token do cookie');
-    } else if (queryToken) {
-      token = queryToken;
-      console.log('[API:subscriptions] Usando token da query string');
-    }
-    
-    // Verificar userId alternativo nos cookies ou query params
-    let userId = req.nextUrl.searchParams.get('userId') || 
-      req.cookies.get('userId')?.value || 
-      '';
-      
-    console.log('[API:subscriptions] Token presente:', !!token);
-    console.log('[API:subscriptions] ID alternativo presente:', !!userId);
-    
-    // Validar e normalizar userId se não for um UUID válido
-    if (userId) {
-      const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (userId.match(/^196d18[0-9a-f]{3,5}-/) || !uuidPattern.test(userId)) {
-        const oldId = userId;
-        userId = convertTempIdToUUID(userId);
-        console.log(`[API:subscriptions] ID malformado detectado e convertido: ${oldId} -> ${userId}`);
-      }
-    }
-    
-    // Se não houver token e nem userId, retornar erro
-    if (!token && !userId) {
-      console.log('[API:subscriptions] Sem token de autenticação e sem userId alternativo');
+    if (!authResult.success || !authResult.user_id) {
       return NextResponse.json({ 
         success: false, 
-        error: 'Token de autenticação ausente' 
+        error: authResult.error || 'Falha na autenticação'
       }, { status: 401 });
     }
     
-    // Processar autenticação com Supabase auth
-    let user_id = '';
-    
-    // Verificação tradicional para tokens normais do Supabase
-    if (token) {
-      // Obter dados do usuário através do token
-      try {
-        const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-        
-        if (error || !user) {
-          console.error('[API:subscriptions] Erro ao obter usuário pelo token:', error);
-          
-          // Tentar usar o ID alternativo se disponível
-          if (userId) {
-            console.log('[API:subscriptions] Usando ID alternativo:', userId);
-            user_id = userId;
-          } else {
-            return NextResponse.json({ 
-              success: false, 
-              error: 'Usuário não autenticado' 
-            }, { status: 401 });
-          }
-        } else {
-          user_id = user.id;
-          console.log('[API:subscriptions] Usuário autenticado:', user_id);
-        }
-      } catch (authError) {
-        console.error('[API:subscriptions] Erro ao verificar autenticação:', authError);
-        
-        if (userId) {
-          console.log('[API:subscriptions] Usando ID alternativo após erro:', userId);
-          user_id = userId;
-        } else {
-          return NextResponse.json({ 
-            success: false, 
-            error: 'Erro na autenticação' 
-          }, { status: 500 });
-        }
-      }
-    } else if (userId) {
-      // Para IDs temporários ou quando não há token, usar o userId
-      user_id = userId;
-      console.log('[API:subscriptions] Usando ID fornecido:', user_id);
-    }
+    const user_id = authResult.user_id;
     
     // Buscar detalhes da assinatura no Supabase
     console.log('[API:subscriptions] Buscando assinatura para o usuário:', user_id);

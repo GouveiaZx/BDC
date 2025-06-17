@@ -102,12 +102,22 @@ export class AsaasClient {
   constructor(config: AsaasConfig) {
     this.config = config;
     
-    // Usar a chave API como fornecida (já inclui prefixo se necessário)
-    const cleanApiKey = config.apiKey;
+    // CORREÇÃO CRÍTICA: Remover prefixo duplicado se existir
+    let cleanApiKey = config.apiKey;
     
-    // Logar informações sensíveis para debug (NUNCA deixar em produção)
-    console.log('🔑 [DEBUG] ASAAS_API_KEY (parcial):', cleanApiKey.substring(0, 8) + '...' + cleanApiKey.slice(-8));
+    // Se a chave já contém o prefixo $aact_, usar como está
+    // Se não, adicionar o prefixo (para sandbox)
+    if (!cleanApiKey.startsWith('$aact_')) {
+      cleanApiKey = `$aact_${cleanApiKey}`;
+      console.log('🔧 [DEBUG] Prefixo $aact_ adicionado à chave');
+    } else {
+      console.log('🔑 [DEBUG] Chave já contém prefixo $aact_');
+    }
+    
+    // Logar informações para debug (CRÍTICO para diagnóstico)
+    console.log('🔑 [DEBUG] ASAAS_API_KEY (parcial):', cleanApiKey.substring(0, 10) + '...' + cleanApiKey.slice(-10));
     console.log('🌐 [DEBUG] ASAAS_API_URL:', config.apiUrl);
+    console.log('🌍 [DEBUG] Environment:', config.environment);
     
     this.client = axios.create({
       baseURL: config.apiUrl,
