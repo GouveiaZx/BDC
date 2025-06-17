@@ -7,27 +7,21 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const customerId = searchParams.get('customerId');
+
+    if (!customerId) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Parâmetro customerId é obrigatório' 
+      }, { status: 400 });
+    }
+
     // Importar dinamicamente apenas quando necessário
     const { default: asaasService } = await import('../../../../lib/asaas');
     
-    const { searchParams } = new URL(request.url);
-    const cpfCnpj = searchParams.get('cpfCnpj');
-    const email = searchParams.get('email');
-
-    if (cpfCnpj) {
-      const customer = await asaasService.getCustomerByCpfCnpj(cpfCnpj);
-      return NextResponse.json({ success: true, customer });
-    }
-
-    if (email) {
-      const customer = await asaasService.getCustomerByEmail(email);
-      return NextResponse.json({ success: true, customer });
-    }
-
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Parâmetro cpfCnpj ou email é obrigatório' 
-    }, { status: 400 });
+    const customer = await asaasService.getCustomer(customerId);
+    return NextResponse.json({ success: true, customer });
 
   } catch (error) {
     console.error('Erro na API Asaas customers:', error);
