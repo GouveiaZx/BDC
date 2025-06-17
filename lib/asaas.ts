@@ -108,7 +108,7 @@ export class AsaasClient {
     this.client = axios.create({
       baseURL: config.apiUrl,
       headers: {
-        'access_token': cleanApiKey,
+        'Authorization': `Bearer ${cleanApiKey}`,
         'Content-Type': 'application/json',
         'User-Agent': 'BDC-Classificados/1.0'
       },
@@ -123,7 +123,7 @@ export class AsaasClient {
         baseURL: request.baseURL,
         fullURL: `${request.baseURL}${request.url}`,
         headers: {
-          'access_token': request.headers['access_token'] ? `${request.headers['access_token'].substring(0, 10)}...` : 'NOT_SET',
+          'Authorization': request.headers['Authorization'] ? `${String(request.headers['Authorization']).substring(0, 20)}...` : 'NOT_SET',
           'Content-Type': request.headers['Content-Type']
         },
           data: request.data
@@ -152,7 +152,7 @@ export class AsaasClient {
             baseURL: error.config?.baseURL,
             fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A',
             headers: {
-              'access_token': error.config?.headers?.['access_token'] ? `${error.config.headers['access_token'].substring(0, 10)}...` : 'NOT_SET'
+              'Authorization': error.config?.headers?.['Authorization'] ? `${String(error.config.headers['Authorization']).substring(0, 20)}...` : 'NOT_SET'
             }
           }
           });
