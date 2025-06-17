@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
     try {
       // Importar dinamicamente o serviço ASAAS
-      const { default: asaas } = await import('../../../../lib/asaas');
+      const { default: asaas } = await import('../../../lib/asaas');
       
       // CRIAR ASSINATURA REAL NO ASAAS
       console.log('📅 Criando assinatura recorrente no ASAAS...');
