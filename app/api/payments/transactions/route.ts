@@ -94,17 +94,17 @@ export async function POST(request: NextRequest) {
         asaas_payment_id: asaasPayment.id,
         asaas_customer_id: customer.asaas_customer_id,
         type,
-        status: asaasPayment.status,
+        status: (asaasPayment as any).status || 'PENDING',
         amount,
-        net_amount: asaasPayment.netValue,
+        net_amount: (asaasPayment as any).netValue || amount,
         billing_type: billingType,
         due_date: paymentDueDate,
         description: description || `Pagamento ${type}`,
         external_reference: paymentData.externalReference,
-        invoice_url: asaasPayment.invoiceUrl,
-        bank_slip_url: asaasPayment.bankSlipUrl,
-        pix_qr_code: asaasPayment.pixTransaction?.qrCode?.encodedImage,
-        pix_payload: asaasPayment.pixTransaction?.qrCode?.payload
+        invoice_url: (asaasPayment as any).invoiceUrl,
+        bank_slip_url: (asaasPayment as any).bankSlipUrl,
+        pix_qr_code: (asaasPayment as any).pixTransaction?.qrCode?.encodedImage,
+        pix_payload: (asaasPayment as any).pixTransaction?.qrCode?.payload
       })
       .select()
       .single();
@@ -153,9 +153,9 @@ export async function PUT(request: NextRequest) {
       const { data: updatedTransaction, error } = await supabase
         .from('transactions')
         .update({
-          status: asaasPayment.status,
-          paid_date: asaasPayment.paymentDate ? new Date(asaasPayment.paymentDate).toISOString() : null,
-          transaction_receipt_url: asaasPayment.transactionReceiptUrl
+          status: (asaasPayment as any).status || 'PENDING',
+          paid_date: (asaasPayment as any).paymentDate ? new Date((asaasPayment as any).paymentDate).toISOString() : null,
+          transaction_receipt_url: (asaasPayment as any).transactionReceiptUrl
         })
         .eq('id', transactionId)
         .select()
