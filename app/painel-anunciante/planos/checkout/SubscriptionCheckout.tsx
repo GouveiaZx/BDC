@@ -520,7 +520,11 @@ export default function SubscriptionCheckout() {
                 
                 {qrCodeUrl && (
                   <div className="text-center mb-4">
-                    <img src={qrCodeUrl} alt="QR Code PIX" className="mx-auto max-w-48 max-h-48" />
+                    <img 
+                      src={qrCodeUrl.startsWith('data:') ? qrCodeUrl : `data:image/png;base64,${qrCodeUrl}`} 
+                      alt="QR Code PIX" 
+                      className="mx-auto max-w-48 max-h-48" 
+                    />
                     <p className="text-sm text-green-600 mt-2">Escaneie o QR Code com seu banco</p>
                   </div>
                 )}
