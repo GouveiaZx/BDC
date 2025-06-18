@@ -36,35 +36,54 @@ interface CustomerData {
 
 // Mapeamento dos parâmetros da URL para IDs dos planos
 const URL_TO_PLAN_MAPPING: { [key: string]: string } = {
+  'basic': 'gratuito',
+  'micro_business': 'micro-empresa',
   'small_business': 'pequena-empresa',
-  'medium_business': 'media-empresa',
-  'large_business': 'grande-empresa',
+  'business_simple': 'empresa-simples',
+  'business_plus': 'empresa-plus',
+  // Também mantém compatibilidade com IDs diretos
+  'gratuito': 'gratuito',
+  'micro-empresa': 'micro-empresa',
   'pequena-empresa': 'pequena-empresa',
-  'media-empresa': 'media-empresa',
-  'grande-empresa': 'grande-empresa'
+  'empresa-simples': 'empresa-simples',
+  'empresa-plus': 'empresa-plus'
 }
 
 const PLANS: { [key: string]: Plan } = {
+  'gratuito': {
+    id: 'gratuito',
+    name: 'Gratuito',
+    price: 0,
+    description: 'Para iniciantes',
+    features: ['3 anúncios ativos', '30 dias de duração', 'Suporte por email']
+  },
+  'micro-empresa': {
+    id: 'micro-empresa',
+    name: 'Micro-Empresa',
+    price: 24.90,
+    description: 'Para microempreendedores',
+    features: ['4 anúncios ativos', '60 dias de duração', 'Verificação', 'Suporte por email']
+  },
   'pequena-empresa': {
     id: 'pequena-empresa',
     name: 'Pequena Empresa',
-    price: 49.9,
-    description: 'Ideal para pequenos negócios',
-    features: ['Até 10 anúncios', 'Suporte básico', 'Estatísticas básicas']
+    price: 49.90,
+    description: 'Para pequenos negócios',
+    features: ['5 anúncios ativos', '90 dias de duração', '1 destaque por dia', 'Estatísticas detalhadas', 'Suporte por chat']
   },
-  'media-empresa': {
-    id: 'media-empresa', 
-    name: 'Média Empresa',
-    price: 99.9,
-    description: 'Para empresas em crescimento',
-    features: ['Até 50 anúncios', 'Suporte prioritário', 'Estatísticas avançadas']
+  'empresa-simples': {
+    id: 'empresa-simples', 
+    name: 'Empresa Simples',
+    price: 99.90,
+    description: 'Para empresas',
+    features: ['10 anúncios ativos', 'Duração ilimitada', '2 destaques por dia', 'Estatísticas avançadas', 'Suporte prioritário']
   },
-  'grande-empresa': {
-    id: 'grande-empresa',
-    name: 'Grande Empresa', 
-    price: 199.9,
-    description: 'Para grandes corporações',
-    features: ['Anúncios ilimitados', 'Suporte 24/7', 'Relatórios personalizados']
+  'empresa-plus': {
+    id: 'empresa-plus',
+    name: 'Empresa Plus', 
+    price: 149.90,
+    description: 'Para grandes negócios',
+    features: ['20 anúncios ativos', 'Duração ilimitada', '3 destaques por dia', 'Estatísticas premium', 'Suporte dedicado']
   }
 }
 
