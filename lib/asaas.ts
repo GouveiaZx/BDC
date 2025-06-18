@@ -102,61 +102,53 @@ export class AsaasClient {
   constructor(config: AsaasConfig) {
     this.config = config;
     
-    // CORREÇÃO CRÍTICA: Remover prefixo duplicado se existir
-    let cleanApiKey = config.apiKey;
+    // CORREÇÃO BASEADA NA DOCUMENTAÇÃO OFICIAL DO ASAAS:
+    // Header deve ser: access_token: sua_api_key (SEM prefixos!)
+    const apiKey = config.apiKey;
     
-    // Se a chave já contém o prefixo $aact_, usar como está
-    // Se não, adicionar o prefixo (para sandbox)
-    if (!cleanApiKey.startsWith('$aact_')) {
-      cleanApiKey = `$aact_${cleanApiKey}`;
-      console.log('🔧 [DEBUG] Prefixo $aact_ adicionado à chave');
-    } else {
-      console.log('🔑 [DEBUG] Chave já contém prefixo $aact_');
-    }
-    
-    // Logar informações para debug (CRÍTICO para diagnóstico)
-    console.log('🔑 [DEBUG] ASAAS_API_KEY (parcial):', cleanApiKey.substring(0, 10) + '...' + cleanApiKey.slice(-10));
-    console.log('🌐 [DEBUG] ASAAS_API_URL:', config.apiUrl);
-    console.log('🌍 [DEBUG] Environment:', config.environment);
+    // Logar informações para debug
+    console.log('🔑 [ASAAS DEBUG] API Key (primeiros 15 chars):', apiKey.substring(0, 15) + '...');
+    console.log('🌐 [ASAAS DEBUG] API URL:', config.apiUrl);
+    console.log('🌍 [ASAAS DEBUG] Environment:', config.environment);
     
     this.client = axios.create({
       baseURL: config.apiUrl,
       headers: {
-        'access_token': cleanApiKey,
+        'access_token': apiKey, // CONFORME DOCUMENTAÇÃO OFICIAL
         'Content-Type': 'application/json',
         'User-Agent': 'BDC-Classificados/1.0'
       },
       timeout: 30000
     });
 
-    // Interceptor para log de requests - SEMPRE ATIVO para debug
-      this.client.interceptors.request.use(request => {
-      console.log('🔄 ASAAS Request:', {
-          method: request.method?.toUpperCase(),
-          url: request.url,
+    // Interceptor para log de requests
+    this.client.interceptors.request.use(request => {
+      console.log('🔄 [ASAAS] Request:', {
+        method: request.method?.toUpperCase(),
+        url: request.url,
         baseURL: request.baseURL,
         fullURL: `${request.baseURL}${request.url}`,
         headers: {
-          'access_token': request.headers['access_token'] ? `${String(request.headers['access_token']).substring(0, 20)}...` : 'NOT_SET',
+          'access_token': request.headers['access_token'] ? `${String(request.headers['access_token']).substring(0, 15)}...` : 'NOT_SET',
           'Content-Type': request.headers['Content-Type']
         },
-          data: request.data
-        });
-        return request;
+        data: request.data
       });
+      return request;
+    });
 
-      this.client.interceptors.response.use(
-        response => {
-        console.log('✅ ASAAS Response:', {
-            status: response.status,
+    this.client.interceptors.response.use(
+      response => {
+        console.log('✅ [ASAAS] Success Response:', {
+          status: response.status,
           statusText: response.statusText,
-            data: response.data
-          });
-          return response;
-        },
-        error => {
-        console.error('❌ ASAAS Error:', {
-            status: error.response?.status,
+          data: response.data
+        });
+        return response;
+      },
+      error => {
+        console.error('❌ [ASAAS] Error Response:', {
+          status: error.response?.status,
           statusText: error.response?.statusText,
           message: error.message,
           data: error.response?.data,
@@ -164,15 +156,12 @@ export class AsaasClient {
             method: error.config?.method,
             url: error.config?.url,
             baseURL: error.config?.baseURL,
-            fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A',
-            headers: {
-              'access_token': error.config?.headers?.['access_token'] ? `${String(error.config.headers['access_token']).substring(0, 20)}...` : 'NOT_SET'
-            }
+            fullURL: error.config ? `${error.config.baseURL}${error.config.url}` : 'N/A'
           }
-          });
-          return Promise.reject(error);
-        }
-      );
+        });
+        return Promise.reject(error);
+      }
+    );
   }
 
   // CUSTOMERS
@@ -344,16 +333,17 @@ export class AsaasClient {
   }
 }
 
-// Instância global configurada
-console.log('🔧 Configurando ASAAS com variáveis:', {
+// Instância global configurada CONFORME DOCUMENTAÇÃO OFICIAL
+console.log('🔧 [ASAAS] Configurando cliente com variáveis:', {
   apiKey: process.env.ASAAS_API_KEY ? '[PRESENTE]' : '[AUSENTE]',
-  apiUrl: process.env.ASAAS_API_URL || 'DEFAULT',
-  environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
+  apiUrl: process.env.ASAAS_API_URL || '[USANDO DEFAULT]',
+  nodeEnv: process.env.NODE_ENV
 });
 
 const asaas = new AsaasClient({
   apiKey: process.env.ASAAS_API_KEY || 'sandbox_your_api_key_here',
-  apiUrl: process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3',
+  // CORREÇÃO: URLs conforme documentação oficial ASAAS
+  apiUrl: process.env.ASAAS_API_URL || 'https://api.asaas.com/v3', // PRODUÇÃO como padrão
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
 });
 
