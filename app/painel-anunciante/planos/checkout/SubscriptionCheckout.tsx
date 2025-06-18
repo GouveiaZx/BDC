@@ -187,6 +187,65 @@ export default function SubscriptionCheckout({
       console.log('👤 Criando cliente no ASAAS...');
       console.log('📧 Email do usuário:', userProfile.email);
       
+      // Para PIX, usar fluxo simplificado direto
+      if (paymentMethod === 'pix') {
+        console.log('💳 PIX detectado - usando fluxo simplificado');
+        
+        // Dados mínimos para PIX
+        const pixPaymentData = {
+          customer: {
+            name: cardName || userProfile.name || 'Cliente',
+            email: userProfile.email,
+            phone: userProfile.phone || "11999999999" // Temporário para PIX
+          },
+          billingType: "PIX",
+          value: planPrice || 0,
+          dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
+          description: `Assinatura - ${planName}`
+        };
+
+        console.log('💳 Criando cobrança PIX:', pixPaymentData);
+
+        // Usar API direta de pagamentos
+        const response = await fetch('/api/asaas/payments', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(pixPaymentData),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Erro ao criar cobrança PIX');
+        }
+
+        console.log('✅ Cobrança PIX criada:', result);
+        
+        // Simular estrutura de subscription para compatibilidade
+        setSubscriptionData({
+          ...result.payment,
+          pix_qr_code: result.payment?.pixTransaction?.qrCode || null,
+          pix_payload: result.payment?.pixTransaction?.payload || null
+        });
+        
+        // Configurar PIX para exibição
+        if (result.payment?.pixTransaction) {
+          setPixQrCode(result.payment.pixTransaction.qrCode);
+          setPixPayload(result.payment.pixTransaction.payload);
+          setPaymentProcessed(true);
+        } else {
+          setError('Erro: QR Code PIX não foi gerado. Tente novamente.');
+          setLoading(false);
+          return;
+        }
+        
+        setLoading(false);
+        return;
+      }
+      
+      // Para outros métodos, manter fluxo original
       const customerResponse = await fetch('/api/payments/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -254,18 +313,7 @@ export default function SubscriptionCheckout({
       setSubscriptionData(result.subscription);
 
       // PASSO 3: Processar resposta baseada no método de pagamento
-      if (paymentMethod === 'pix') {
-        if (result.subscription.pix_qr_code || result.subscription.pix_payload) {
-          console.log('🔗 Dados PIX recebidos');
-          setPixQrCode(result.subscription.pix_qr_code);
-          setPixPayload(result.subscription.pix_payload);
-          setPaymentProcessed(true);
-        } else {
-          setError('Erro: QR Code PIX não foi gerado. Tente novamente.');
-          setLoading(false);
-          return;
-        }
-      } else if (paymentMethod === 'boleto') {
+      if (paymentMethod === 'boleto') {
         if (result.subscription.boleto_url) {
           console.log('📄 URL do boleto recebida');
           setBoletoUrl(result.subscription.boleto_url);
