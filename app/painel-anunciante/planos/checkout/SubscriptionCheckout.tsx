@@ -34,6 +34,16 @@ interface CustomerData {
   state?: string
 }
 
+// Mapeamento dos parâmetros da URL para IDs dos planos
+const URL_TO_PLAN_MAPPING: { [key: string]: string } = {
+  'small_business': 'pequena-empresa',
+  'medium_business': 'media-empresa',
+  'large_business': 'grande-empresa',
+  'pequena-empresa': 'pequena-empresa',
+  'media-empresa': 'media-empresa',
+  'grande-empresa': 'grande-empresa'
+}
+
 const PLANS: { [key: string]: Plan } = {
   'pequena-empresa': {
     id: 'pequena-empresa',
@@ -138,8 +148,13 @@ export default function SubscriptionCheckout() {
 
     // Obter plano selecionado dos parâmetros da URL
     const params = new URLSearchParams(window.location.search)
-    const planId = params.get('plan') || 'pequena-empresa'
-    setSelectedPlan(planId)
+    const urlPlanId = params.get('plan') || 'pequena-empresa'
+    
+    // Mapear o parâmetro da URL para o ID correto do plano
+    const mappedPlanId = URL_TO_PLAN_MAPPING[urlPlanId] || 'pequena-empresa'
+    
+    console.log('🔍 Plano da URL:', urlPlanId, '-> Mapeado para:', mappedPlanId)
+    setSelectedPlan(mappedPlanId)
   }, [supabase])
 
   const validateCustomerData = (): boolean => {
