@@ -4,8 +4,8 @@ export async function GET() {
   try {
     console.log('🧪 [SIMPLE-TEST] Testando ASAAS diretamente...');
     
-    // Hardcode direto, sem usar lib/asaas.ts
-    const ASAAS_API_KEY = 'prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjNiZmZlNzcyLTZiZWEtNDhlNC05NjMxLTY0M2JkY2I5YjM3NTo6JGFhY2hfNTJiYjkzYjgtZDBhMi00ZjM0LWFmYjMtMmYzOWQ1NDY4MzE3';
+    // Hardcode direto com a chave EXATA do ASAAS
+    const ASAAS_API_KEY = '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjNiZmZlNzcyLTZiZWEtNDhlNC05NjMxLTY0M2JkY2I5YjM3NTo6JGFhY2hfNTJiYjkzYjgtZDBhMi00ZjM0LWFmYjMtMmYzOWQ1NDY4MzE3';
     const ASAAS_API_URL = 'https://api.asaas.com/v3';
     
     // Teste simples: buscar informações da conta
@@ -33,11 +33,12 @@ export async function GET() {
     
     return NextResponse.json({
       timestamp: new Date().toISOString(),
-      version: "1.0-SIMPLE-TEST",
+      version: "2.0-FIXED-KEY",
       test: {
-        apiKey: ASAAS_API_KEY.substring(0, 15) + '...',
+        apiKey: ASAAS_API_KEY.substring(0, 20) + '...',
         apiUrl: ASAAS_API_URL,
-        keyLength: ASAAS_API_KEY.length
+        keyLength: ASAAS_API_KEY.length,
+        keyPrefix: ASAAS_API_KEY.substring(0, 12)
       },
       response: {
         status: response.status,
@@ -46,7 +47,7 @@ export async function GET() {
         data: parsedData
       },
       success: response.ok,
-      message: response.ok ? 'ASAAS API funcionando!' : 'Erro na API ASAAS'
+      message: response.ok ? 'ASAAS API funcionando com chave correta!' : 'Ainda com erro - precisa investigar mais'
     });
     
   } catch (error: any) {

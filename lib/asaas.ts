@@ -333,29 +333,26 @@ export class AsaasClient {
   }
 }
 
-// Instância global configurada CONFORME DOCUMENTAÇÃO OFICIAL
-// FORCE REBUILD - VERSION 2.0 - TIMESTAMP: 2025-01-19
-// TEMP FIX: Hardcode config pois env vars não estão no servidor
-console.log('🔧 [ASAAS] Configurando cliente com variáveis:', {
-  apiKey: process.env.ASAAS_API_KEY ? '[PRESENTE]' : '[AUSENTE]',
-  apiUrl: process.env.ASAAS_API_URL || '[USANDO DEFAULT]',
-  nodeEnv: process.env.NODE_ENV
-});
+// ASAAS API Client - Versão corrigida para BDC
+// Configuração com hardcode temporário para teste
 
-// TEMP FIX: Como env vars não estão no servidor, usar fallback
-const TEMP_ASAAS_CONFIG = {
-  apiKey: process.env.ASAAS_API_KEY || 'prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjNiZmZlNzcyLTZiZWEtNDhlNC05NjMxLTY0M2JkY2I5YjM3NTo6JGFhY2hfNTJiYjkzYjgtZDBhMi00ZjM0LWFmYjMtMmYzOWQ1NDY4MzE3',
+const ASAAS_CONFIG = {
+  // Usando a chave EXATA como fornecida pelo ASAAS
+  apiKey: process.env.ASAAS_API_KEY || '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjNiZmZlNzcyLTZiZWEtNDhlNC05NjMxLTY0M2JkY2I5YjM3NTo6JGFhY2hfNTJiYjkzYjgtZDBhMi00ZjM0LWFmYjMtMmYzOWQ1NDY4MzE3',
   apiUrl: process.env.ASAAS_API_URL || 'https://api.asaas.com/v3'
 };
 
-console.log('🔧 [ASAAS] Usando configuração temporária:', {
-  apiKeySource: process.env.ASAAS_API_KEY ? 'ENV_VAR' : 'HARDCODED',
-  apiUrl: TEMP_ASAAS_CONFIG.apiUrl
+console.log('🔧 [ASAAS] Configuração carregada:', {
+  hasApiKey: !!ASAAS_CONFIG.apiKey,
+  keyLength: ASAAS_CONFIG.apiKey.length,
+  keyPrefix: ASAAS_CONFIG.apiKey.substring(0, 12),
+  apiUrl: ASAAS_CONFIG.apiUrl,
+  source: process.env.ASAAS_API_KEY ? 'ENV_VAR' : 'HARDCODE'
 });
 
 const asaas = new AsaasClient({
-  apiKey: TEMP_ASAAS_CONFIG.apiKey,
-  apiUrl: TEMP_ASAAS_CONFIG.apiUrl,
+  apiKey: ASAAS_CONFIG.apiKey,
+  apiUrl: ASAAS_CONFIG.apiUrl,
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
 });
 
