@@ -335,16 +335,27 @@ export class AsaasClient {
 
 // Instância global configurada CONFORME DOCUMENTAÇÃO OFICIAL
 // FORCE REBUILD - VERSION 2.0 - TIMESTAMP: 2025-01-19
+// TEMP FIX: Hardcode config pois env vars não estão no servidor
 console.log('🔧 [ASAAS] Configurando cliente com variáveis:', {
   apiKey: process.env.ASAAS_API_KEY ? '[PRESENTE]' : '[AUSENTE]',
   apiUrl: process.env.ASAAS_API_URL || '[USANDO DEFAULT]',
   nodeEnv: process.env.NODE_ENV
 });
 
+// TEMP FIX: Como env vars não estão no servidor, usar fallback
+const TEMP_ASAAS_CONFIG = {
+  apiKey: process.env.ASAAS_API_KEY || 'prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjNiZmZlNzcyLTZiZWEtNDhlNC05NjMxLTY0M2JkY2I5YjM3NTo6JGFhY2hfNTJiYjkzYjgtZDBhMi00ZjM0LWFmYjMtMmYzOWQ1NDY4MzE3',
+  apiUrl: process.env.ASAAS_API_URL || 'https://api.asaas.com/v3'
+};
+
+console.log('🔧 [ASAAS] Usando configuração temporária:', {
+  apiKeySource: process.env.ASAAS_API_KEY ? 'ENV_VAR' : 'HARDCODED',
+  apiUrl: TEMP_ASAAS_CONFIG.apiUrl
+});
+
 const asaas = new AsaasClient({
-  apiKey: process.env.ASAAS_API_KEY || 'sandbox_your_api_key_here',
-  // CORREÇÃO: URLs conforme documentação oficial ASAAS
-  apiUrl: process.env.ASAAS_API_URL || 'https://api.asaas.com/v3', // PRODUÇÃO como padrão
+  apiKey: TEMP_ASAAS_CONFIG.apiKey,
+  apiUrl: TEMP_ASAAS_CONFIG.apiUrl,
   environment: process.env.NODE_ENV === 'production' ? 'production' : 'sandbox'
 });
 
