@@ -117,19 +117,77 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔄 [PAYMENTS-API] Iniciando criação de pagamento...');
+    
     // Importar dinamicamente o serviço ASAAS
     const { default: asaas } = await import('../../../../lib/asaas');
     
     const paymentData = await request.json();
+    
+    console.log('📋 [PAYMENTS-API] Dados recebidos:', paymentData);
+    console.log('📋 [PAYMENTS-API] Validação dos dados:', {
+      hasCustomer: !!paymentData.customer,
+      hasBillingType: !!paymentData.billingType,
+      hasValue: !!paymentData.value,
+      hasDueDate: !!paymentData.dueDate,
+      billingType: paymentData.billingType,
+      value: paymentData.value
+    });
+    
+    // Validações básicas
+    if (!paymentData.customer) {
+      console.error('❌ [PAYMENTS-API] Customer ID ausente');
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Customer ID é obrigatório' 
+      }, { status: 400 });
+    }
+    
+    if (!paymentData.billingType) {
+      console.error('❌ [PAYMENTS-API] Billing type ausente');
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Tipo de cobrança é obrigatório' 
+      }, { status: 400 });
+    }
+    
+    if (!paymentData.value || paymentData.value <= 0) {
+      console.error('❌ [PAYMENTS-API] Valor inválido:', paymentData.value);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Valor deve ser maior que zero' 
+      }, { status: 400 });
+    }
+    
+    if (!paymentData.dueDate) {
+      console.error('❌ [PAYMENTS-API] Data de vencimento ausente');
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Data de vencimento é obrigatória' 
+      }, { status: 400 });
+    }
+    
+    console.log('✅ [PAYMENTS-API] Validações passaram, chamando ASAAS...');
+    
     const payment = await asaas.createPayment(paymentData);
+    
+    console.log('✅ [PAYMENTS-API] Pagamento criado com sucesso:', payment);
     
     return NextResponse.json({ success: true, payment });
 
-  } catch (error) {
-    console.error('Erro ao criar pagamento Asaas:', error);
+  } catch (error: any) {
+    console.error('❌ [PAYMENTS-API] Erro completo:', {
+      message: error.message,
+      stack: error.stack,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+    
     return NextResponse.json({ 
       success: false, 
-      error: 'Erro ao criar pagamento' 
+      error: 'Erro ao criar pagamento',
+      details: error.message,
+      asaasError: error.response?.data
     }, { status: 500 });
   }
 } 
