@@ -167,50 +167,95 @@ export default function CheckoutClient({ plans, initialPlanId }: CheckoutClientP
       
       setLoading(true);
       try {
-        // Preparar dados para API
-        const subscriptionData = {
-          userId: "123", // Deve ser obtido da sessão do usuário
-          planId: selectedPlan?.id,
-          paymentMethod,
-          customerData: {
-            name: formData.cardName || "Cliente", // Nome do cliente
-            email: "cliente@example.com", // Deve ser obtido da sessão
-            phone: "", // Deve ser obtido do perfil
-            cpfCnpj: formData.cpfCnpj,
-            postalCode: formData.zipCode,
-            address: formData.address,
-            addressNumber: "123", // Deve ser parte do formulário
-            province: formData.city,
-            complement: ""
-          },
-          paymentData: paymentMethod === "credit_card" ? {
-            cardName: formData.cardName,
-            cardNumber: formData.cardNumber,
-            cardExpiry: formData.cardExpiry,
-            cardCvv: formData.cardCvv
-          } : null
-        };
+        // Para PIX, usar fluxo simplificado sem necessidade de todos os dados
+        if (paymentMethod === 'pix') {
+          // Dados mínimos para PIX
+          const pixPaymentData = {
+            customer: {
+              name: formData.cardName || "Cliente",
+              email: "temp@example.com", // Temporário para PIX
+              phone: "11999999999" // Temporário para PIX
+            },
+            billingType: "PIX",
+            value: selectedPlan?.price || 0,
+            dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
+            description: `Assinatura - ${selectedPlan?.name}`
+          };
 
-        // Chamar API para criar assinatura
-        const response = await fetch('/checkout/api/create-subscription', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(subscriptionData),
-        });
+          console.log('💳 Criando cobrança PIX:', pixPaymentData);
 
-        const result = await response.json();
+          // Usar API direta de pagamentos
+          const response = await fetch('/api/asaas/payments', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(pixPaymentData),
+          });
 
-        if (!response.ok) {
-          throw new Error(result.error || 'Erro ao processar assinatura');
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Erro ao criar cobrança PIX');
+          }
+
+          console.log('✅ Cobrança PIX criada:', result);
+          
+          // Redirecionar para página de sucesso com dados do PIX
+          const paymentId = result.payment?.id;
+          if (paymentId) {
+            router.push(`/checkout/success?payment=${paymentId}`);
+          } else {
+            router.push('/checkout/success');
+          }
+          
+        } else {
+          // Para outros métodos de pagamento, manter fluxo atual (se necessário)
+          // Preparar dados para API
+          const subscriptionData = {
+            userId: "123", // Deve ser obtido da sessão do usuário
+            planId: selectedPlan?.id,
+            paymentMethod,
+            customerData: {
+              name: formData.cardName || "Cliente", // Nome do cliente
+              email: "cliente@example.com", // Deve ser obtido da sessão
+              phone: "", // Deve ser obtido do perfil
+              cpfCnpj: formData.cpfCnpj,
+              postalCode: formData.zipCode,
+              address: formData.address,
+              addressNumber: "123", // Deve ser parte do formulário
+              province: formData.city,
+              complement: ""
+            },
+            paymentData: paymentMethod === "credit_card" ? {
+              cardName: formData.cardName,
+              cardNumber: formData.cardNumber,
+              cardExpiry: formData.cardExpiry,
+              cardCvv: formData.cardCvv
+            } : null
+          };
+
+          // Chamar API para criar assinatura
+          const response = await fetch('/api/payments/subscriptions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(subscriptionData),
+          });
+
+          const result = await response.json();
+
+          if (!response.ok) {
+            throw new Error(result.error || 'Erro ao processar assinatura');
+          }
+
+          // Sucesso: redirecionar para página de sucesso
+          router.push('/checkout/success');
         }
-
-        // Sucesso: redirecionar para página de sucesso
-        router.push('/checkout/success');
       } catch (error) {
-        alert('Erro ao processar o pagamento. Por favor, tente novamente.');
-        console.error('Erro no pagamento:', error);
+        console.error('❌ Erro ao processar pagamento:', error);
+        alert(`Erro ao processar pagamento: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
       } finally {
         setLoading(false);
       }
