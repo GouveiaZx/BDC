@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
           success: false,
           details: error instanceof Error ? error.message : 'Erro desconhecido'
         }, { status: 500 });
-    }
+      }
     }
 
     // Se busca por subscription ID
@@ -69,15 +69,14 @@ export async function GET(request: NextRequest) {
             if (payment.billingType === 'PIX' && payment.status === 'PENDING') {
               try {
                 console.log('🔍 Buscando QR Code PIX para pagamento:', payment.id);
-                // TODO: Implementar getPixQrCode quando método estiver disponível
-                // const pixQrCode = await asaas.getPixQrCode(payment.id);
-                console.log('✅ QR Code PIX obtido (simulado)');
+                const pixQrCode = await asaas.getPixQrCode(payment.id);
+                console.log('✅ QR Code PIX obtido:', pixQrCode);
                 
                 return {
                   ...payment,
                   pixTransaction: {
                     ...payment.pixTransaction,
-                    // qrCode: pixQrCode
+                    qrCode: pixQrCode
                   }
                 };
               } catch (pixError) {
@@ -97,9 +96,9 @@ export async function GET(request: NextRequest) {
         
       } catch (error) {
         console.error('❌ Erro ao buscar pagamentos da assinatura:', error);
-    return NextResponse.json({ 
+        return NextResponse.json({ 
           error: 'Erro ao buscar pagamentos da assinatura',
-      success: false, 
+          success: false, 
           details: error instanceof Error ? error.message : 'Erro desconhecido'
         }, { status: 500 });
       }
@@ -117,33 +116,25 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔄 [PAYMENTS-API] Iniciando criação de pagamento...');
+    console.log('🔄 [PAYMENTS-API] Iniciando criação de pagamento com cliente...');
     
     // Importar dinamicamente o serviço ASAAS
     const { default: asaas } = await import('../../../../lib/asaas');
     
-    const paymentData = await request.json();
+    const requestData = await request.json();
     
-    console.log('📋 [PAYMENTS-API] Dados recebidos:', paymentData);
-    console.log('📋 [PAYMENTS-API] Validação dos dados:', {
-      hasCustomer: !!paymentData.customer,
-      hasBillingType: !!paymentData.billingType,
-      hasValue: !!paymentData.value,
-      hasDueDate: !!paymentData.dueDate,
-      billingType: paymentData.billingType,
-      value: paymentData.value
-    });
+    console.log('📋 [PAYMENTS-API] Dados recebidos:', requestData);
     
     // Validações básicas
-    if (!paymentData.customer) {
-      console.error('❌ [PAYMENTS-API] Customer ID ausente');
+    if (!requestData.customer) {
+      console.error('❌ [PAYMENTS-API] Dados do cliente ausentes');
       return NextResponse.json({ 
         success: false, 
-        error: 'Customer ID é obrigatório' 
+        error: 'Dados do cliente são obrigatórios' 
       }, { status: 400 });
     }
     
-    if (!paymentData.billingType) {
+    if (!requestData.billingType) {
       console.error('❌ [PAYMENTS-API] Billing type ausente');
       return NextResponse.json({ 
         success: false, 
@@ -151,29 +142,133 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
     
-    if (!paymentData.value || paymentData.value <= 0) {
-      console.error('❌ [PAYMENTS-API] Valor inválido:', paymentData.value);
+    if (!requestData.value || requestData.value <= 0) {
+      console.error('❌ [PAYMENTS-API] Valor inválido:', requestData.value);
       return NextResponse.json({ 
         success: false, 
         error: 'Valor deve ser maior que zero' 
       }, { status: 400 });
     }
     
-    if (!paymentData.dueDate) {
+    if (!requestData.dueDate) {
       console.error('❌ [PAYMENTS-API] Data de vencimento ausente');
       return NextResponse.json({ 
         success: false, 
         error: 'Data de vencimento é obrigatória' 
       }, { status: 400 });
     }
+
+    // Validar CPF/CNPJ obrigatório
+    if (!requestData.customer.cpfCnpj) {
+      console.error('❌ [PAYMENTS-API] CPF/CNPJ obrigatório para pagamentos');
+      return NextResponse.json({ 
+        success: false, 
+        error: 'CPF/CNPJ é obrigatório para criar pagamentos' 
+      }, { status: 400 });
+    }
     
-    console.log('✅ [PAYMENTS-API] Validações passaram, chamando ASAAS...');
+    console.log('✅ [PAYMENTS-API] Validações passaram');
+    
+    // ETAPA 1: Criar cliente no ASAAS
+    console.log('🔄 [PAYMENTS-API] ETAPA 1: Criando cliente no ASAAS...');
+    
+    const customerData = {
+      name: requestData.customer.name,
+      email: requestData.customer.email,
+      cpfCnpj: requestData.customer.cpfCnpj.replace(/\D/g, ''), // Limpar formatação
+      phone: requestData.customer.phone?.replace(/\D/g, '') || undefined,
+      mobilePhone: requestData.customer.phone?.replace(/\D/g, '') || undefined,
+      postalCode: requestData.customer.postalCode?.replace(/\D/g, '') || undefined,
+      address: requestData.customer.address || undefined,
+      addressNumber: requestData.customer.addressNumber || undefined,
+      complement: requestData.customer.complement || undefined,
+      province: requestData.customer.province || undefined,
+      city: requestData.customer.city || undefined,
+      state: requestData.customer.state || undefined,
+      externalReference: `customer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    };
+    
+    console.log('📋 [PAYMENTS-API] Dados do cliente para ASAAS:', customerData);
+    
+    const customer = await asaas.createCustomer(customerData);
+    
+    if (!customer.id) {
+      console.error('❌ [PAYMENTS-API] Cliente criado mas sem ID:', customer);
+      return NextResponse.json({ 
+        success: false, 
+        error: 'Erro ao criar cliente - ID não retornado' 
+      }, { status: 500 });
+    }
+    
+    console.log('✅ [PAYMENTS-API] Cliente criado com sucesso! ID:', customer.id);
+    
+    // ETAPA 2: Criar pagamento no ASAAS
+    console.log('🔄 [PAYMENTS-API] ETAPA 2: Criando pagamento no ASAAS...');
+    
+    const paymentData = {
+      customer: customer.id, // AGORA PASSAMOS O ID DO CLIENTE!
+      billingType: requestData.billingType,
+      value: requestData.value,
+      dueDate: requestData.dueDate,
+      description: requestData.description || `Pagamento - ${requestData.billingType}`,
+      externalReference: requestData.externalReference || `payment-${Date.now()}`,
+      // Para cartão de crédito
+      ...(requestData.billingType === 'CREDIT_CARD' && {
+        installmentCount: requestData.installmentCount || 1,
+        installmentValue: requestData.installmentValue || requestData.value
+      })
+    };
+    
+    console.log('📋 [PAYMENTS-API] Dados do pagamento para ASAAS:', paymentData);
     
     const payment = await asaas.createPayment(paymentData);
     
     console.log('✅ [PAYMENTS-API] Pagamento criado com sucesso:', payment);
     
-    return NextResponse.json({ success: true, payment });
+    // ETAPA 3: Para PIX, buscar QR Code
+    let pixQrCodeUrl = null;
+    let pixCopyAndPaste = null;
+    
+    if (requestData.billingType === 'PIX' && payment.id) {
+      try {
+        console.log('🔄 [PAYMENTS-API] ETAPA 3: Buscando QR Code PIX...');
+        const pixQrCode = await asaas.getPixQrCode(payment.id);
+        
+                 if (pixQrCode) {
+           pixQrCodeUrl = (pixQrCode as any).encodedImage || (pixQrCode as any).qrCodeUrl || null;
+           pixCopyAndPaste = (pixQrCode as any).payload || (pixQrCode as any).pixCopyAndPaste || null;
+           console.log('✅ [PAYMENTS-API] QR Code PIX obtido:', { 
+             hasQrCode: !!pixQrCodeUrl, 
+             hasCopyPaste: !!pixCopyAndPaste 
+           });
+         }
+      } catch (pixError) {
+        console.error('⚠️ [PAYMENTS-API] Erro ao buscar QR Code PIX (não crítico):', pixError);
+        // Não falha o processo, apenas avisa
+      }
+    }
+    
+    // Resposta final
+    const response = {
+      success: true,
+      payment: payment,
+      customer: customer,
+             // Dados específicos do PIX
+       ...(requestData.billingType === 'PIX' && {
+         pixQrCodeUrl,
+         pixCopyAndPaste,
+         pixTransaction: (payment as any).pixTransaction
+       }),
+       // Para boleto
+       ...(requestData.billingType === 'BOLETO' && {
+         bankSlipUrl: (payment as any).bankSlipUrl
+       })
+    };
+    
+    console.log('✅ [PAYMENTS-API] Processo concluído com sucesso!');
+    console.log('📋 [PAYMENTS-API] Resposta final:', response);
+    
+    return NextResponse.json(response);
 
   } catch (error: any) {
     console.error('❌ [PAYMENTS-API] Erro completo:', {
@@ -185,7 +280,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ 
       success: false, 
-      error: 'Erro ao criar pagamento',
+      error: 'Erro ao processar pagamento',
       details: error.message,
       asaasError: error.response?.data
     }, { status: 500 });

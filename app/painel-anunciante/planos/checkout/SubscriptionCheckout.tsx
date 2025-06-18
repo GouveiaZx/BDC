@@ -1,1205 +1,561 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { SubscriptionPlan, BusinessCategory, businessCategoryNames } from '../../../models/types';
-import { FaCheckCircle, FaCreditCard, FaSpinner, FaBarcode, FaQrcode, FaTimes, FaArrowLeft, FaInfoCircle, FaRegCreditCard, FaTags, FaLock, FaShieldAlt, FaCrown, FaUser } from 'react-icons/fa';
-import Link from 'next/link';
-import { calculateTrialEndDate, isEligibleForTrial } from '../../../lib/subscriptionHelper';
-import BusinessCategoriesSelector from './BusinessCategoriesSelector';
-import { useSupabase } from '../../../components/SupabaseProvider';
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { User } from '@supabase/supabase-js'
 
-interface SubscriptionCheckoutProps {
-  planId: SubscriptionPlan;
-  planName: string;
-  planPrice: number;
-  planFeatures: string[];
+interface PaymentMethod {
+  id: string
+  name: string
+  icon: string
+  description: string
 }
 
-export default function SubscriptionCheckout({ 
-  planId, 
-  planName, 
-  planPrice, 
-  planFeatures 
-}: SubscriptionCheckoutProps) {
-  const router = useRouter();
-  const { isAuthenticated, userId } = useSupabase();
-  const [paymentMethod, setPaymentMethod] = useState<'credit' | 'boleto' | 'pix'>('pix');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [saveCard, setSaveCard] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState('');
-  const [trialEligible, setTrialEligible] = useState(false);
-  const [trialEndDate, setTrialEndDate] = useState<Date | null>(null);
-  const [showCategoriesSelector, setShowCategoriesSelector] = useState(false);
-  const [selectedCategories, setSelectedCategories] = useState<BusinessCategory[]>([]);
-  const [paymentProcessed, setPaymentProcessed] = useState(false);
-  const [pixQrCode, setPixQrCode] = useState<string | null>(null);
-  const [pixPayload, setPixPayload] = useState<string | null>(null);
-  const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
-  const [subscriptionData, setSubscriptionData] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+interface Plan {
+  id: string
+  name: string
+  price: number
+  description: string
+  features: string[]
+}
+
+interface CustomerData {
+  name: string
+  email: string
+  cpfCnpj: string
+  phone?: string
+  postalCode?: string
+  address?: string
+  addressNumber?: string
+  complement?: string
+  province?: string
+  city?: string
+  state?: string
+}
+
+const PLANS: { [key: string]: Plan } = {
+  'pequena-empresa': {
+    id: 'pequena-empresa',
+    name: 'Pequena Empresa',
+    price: 49.9,
+    description: 'Ideal para pequenos negócios',
+    features: ['Até 10 anúncios', 'Suporte básico', 'Estatísticas básicas']
+  },
+  'media-empresa': {
+    id: 'media-empresa', 
+    name: 'Média Empresa',
+    price: 99.9,
+    description: 'Para empresas em crescimento',
+    features: ['Até 50 anúncios', 'Suporte prioritário', 'Estatísticas avançadas']
+  },
+  'grande-empresa': {
+    id: 'grande-empresa',
+    name: 'Grande Empresa', 
+    price: 199.9,
+    description: 'Para grandes corporações',
+    features: ['Anúncios ilimitados', 'Suporte 24/7', 'Relatórios personalizados']
+  }
+}
+
+const PAYMENT_METHODS: PaymentMethod[] = [
+  {
+    id: 'PIX',
+    name: 'PIX',
+    icon: '🏦',
+    description: 'Pagamento instantâneo via PIX'
+  },
+  {
+    id: 'CREDIT_CARD',
+    name: 'Cartão de Crédito',
+    icon: '💳',
+    description: 'Pagamento com cartão de crédito'
+  },
+  {
+    id: 'BOLETO',
+    name: 'Boleto Bancário',
+    icon: '📄',
+    description: 'Pagamento via boleto bancário'
+  }
+]
+
+export default function SubscriptionCheckout() {
+  const [user, setUser] = useState<User | null>(null)
+  const [selectedPlan, setSelectedPlan] = useState<string>('')
+  const [selectedPayment, setSelectedPayment] = useState<string>('PIX')
+  const [customerData, setCustomerData] = useState<CustomerData>({
+    name: '',
+    email: '',
+    cpfCnpj: '',
+    phone: '',
+    postalCode: '',
+    address: '',
+    addressNumber: '',
+    complement: '',
+    province: '',
+    city: '',
+    state: ''
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string>('')
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('')
+  const [pixCopyPaste, setPixCopyPaste] = useState<string>('')
   
-  // Estados para dados do cliente (formulário PIX)
-  const [customerName, setCustomerName] = useState('');
-  const [customerCpfCnpj, setCustomerCpfCnpj] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [showCustomerForm, setShowCustomerForm] = useState(false);
-  
-  const isPaidPlan = planId !== SubscriptionPlan.FREE;
-  
+  const router = useRouter()
+  const supabase = createClientComponentClient()
+
   useEffect(() => {
-    // Carregar dados do usuário
-    const loadUserProfile = async () => {
-      try {
-        if (userId) {
-          // Primeiro tentar obter do localStorage
-          const storedProfile = localStorage.getItem('userProfile');
-          if (storedProfile) {
-            const profileData = JSON.parse(storedProfile);
-            console.log('Perfil carregado do localStorage:', profileData);
-            setUserProfile(profileData);
-          } else {
-            // Se não tem no localStorage, buscar do banco
-            const response = await fetch(`/api/users/profile?userId=${userId}`);
-            if (response.ok) {
-              const data = await response.json();
-              console.log('Perfil carregado da API:', data);
-              setUserProfile(data.profile);
-            } else {
-              // Fallback com dados básicos do localStorage
-              const userEmail = localStorage.getItem('userEmail');
-              const userName = localStorage.getItem('userName');
-              const userPhone = localStorage.getItem('userPhone');
-              
-              const fallbackProfile = {
-                email: userEmail || '',
-                name: userName || '',
-                phone: userPhone || ''
-              };
-              
-              console.log('Usando perfil de fallback:', fallbackProfile);
-              setUserProfile(fallbackProfile);
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao carregar perfil:', error);
-        // Fallback final
-        const userEmail = localStorage.getItem('userEmail');
-        const userName = localStorage.getItem('userName');
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUser(user)
+        // Buscar dados do perfil
+        const { data: profile } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', user.id)
+          .single()
         
-        if (userEmail) {
-          setUserProfile({
-            email: userEmail,
-            name: userName || 'Usuário',
-            phone: ''
-          });
-        }
-      }
-    };
-    
-    // Verificar se é um upgrade (não deve mostrar trial)
-    const urlParams = new URLSearchParams(window.location.search);
-    const isUpgrade = urlParams.get('upgrade') === 'true' || 
-                     document.referrer.includes('painel-anunciante') ||
-                     window.location.pathname.includes('painel-anunciante');
-    
-    if (isUpgrade) {
-      console.log('🔄 Upgrade detectado - Trial desabilitado');
-      setTrialEligible(false);
-    } else {
-      // Para novos usuários, verificar trial apenas se o plano permite
-      const checkTrialEligibility = async () => {
-        if (userId && planId !== SubscriptionPlan.FREE) {
-          const eligible = await isEligibleForTrial(userId);
-          setTrialEligible(eligible);
-          
-          if (eligible) {
-            const endDate = calculateTrialEndDate(planId as SubscriptionPlan);
-            setTrialEndDate(endDate);
-          }
-        }
-      };
-      
-      checkTrialEligibility();
-    }
-    
-    // Carregar perfil do usuário
-    loadUserProfile();
-    
-    setLoading(false);
-  }, [planId, userId]);
-
-  // Formatação de cartão de crédito
-  const formatCardNumber = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    const groups = [];
-    
-    for (let i = 0; i < numbers.length; i += 4) {
-      groups.push(numbers.slice(i, i + 4));
-    }
-    
-    return groups.join(' ').slice(0, 19);
-  };
-  
-  // Formatação de data de expiração
-  const formatExpiryDate = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 2) return numbers;
-    return `${numbers.slice(0, 2)}/${numbers.slice(2, 4)}`;
-  };
-  
-  const handleCardNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCardNumber(formatCardNumber(e.target.value));
-  };
-  
-  const handleExpiryDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setExpiryDate(formatExpiryDate(e.target.value));
-  };
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    try {
-      // PASSO 1: Validações iniciais
-      if (!userId) {
-        setError('Erro: Usuário não autenticado. Faça login novamente.');
-        setLoading(false);
-        return;
-      }
-      
-      // Verificar se o perfil foi carregado
-      if (!userProfile) {
-        setError('Erro: Dados do usuário não carregados. Recarregue a página e tente novamente.');
-        setLoading(false);
-        return;
-      }
-      
-      // Verificar se temos pelo menos email
-      if (!userProfile.email) {
-        setError('Erro: Email do usuário não encontrado. Complete seu perfil primeiro.');
-        setLoading(false);
-        return;
-      }
-      
-      // PASSO 2: Criar/verificar cliente no ASAAS
-      console.log('👤 Criando cliente no ASAAS...');
-      console.log('📧 Email do usuário:', userProfile.email);
-      
-      // Para PIX, usar fluxo simplificado direto
-      if (paymentMethod === 'pix') {
-        console.log('💳 PIX detectado - usando fluxo simplificado');
-        
-        // Validação: CPF/CNPJ é necessário para PIX
-        const cpfCnpjToUse = customerCpfCnpj || userProfile.cpf_cnpj;
-        const nameToUse = customerName || userProfile.name || 'Cliente';
-        const phoneToUse = customerPhone || userProfile.phone || "11999999999";
-        
-        if (!cpfCnpjToUse) {
-          // Mostrar formulário para coletar dados
-          setShowCustomerForm(true);
-          setLoading(false);
-          return;
-        }
-        
-        // PASSO 1: Criar cliente primeiro (obrigatório no ASAAS)
-        console.log('👤 Criando cliente no ASAAS...');
-        const customerData = {
-          name: nameToUse,
-          email: userProfile.email,
-          phone: phoneToUse,
-          cpfCnpj: cpfCnpjToUse // OBRIGATÓRIO PARA PIX!
-        };
-
-        const customerResponse = await fetch('/api/payments/customers', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: userId,
-            ...customerData
+        if (profile) {
+          setCustomerData({
+            name: profile.name || user.user_metadata?.full_name || '',
+            email: user.email || '',
+            cpfCnpj: profile.cpf_cnpj || profile.document || '',
+            phone: profile.phone || profile.whatsapp || '',
+            postalCode: profile.postal_code || '',
+            address: profile.address || '',
+            addressNumber: profile.address_number || '',
+            complement: profile.complement || '',
+            province: profile.province || '',
+            city: profile.city || '',
+            state: profile.state || ''
           })
-        });
-
-        if (!customerResponse.ok) {
-          const customerError = await customerResponse.json();
-          throw new Error(customerError.error || 'Erro ao criar cliente');
-        }
-
-        const { customer } = await customerResponse.json();
-        console.log('✅ Cliente criado:', customer.asaas_customer_id);
-        
-        // PASSO 2: Criar cobrança PIX usando ID do cliente
-        const pixPaymentData = {
-          customer: customer.asaas_customer_id, // ID do cliente criado
-          billingType: "PIX",
-          value: planPrice || 0,
-          dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Amanhã
-          description: `Assinatura - ${planName}`
-        };
-
-        console.log('💳 Criando cobrança PIX:', pixPaymentData);
-
-        // Usar API direta de pagamentos
-        const response = await fetch('/api/asaas/payments', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(pixPaymentData),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Erro ao criar cobrança PIX');
-        }
-
-        console.log('✅ Cobrança PIX criada:', result);
-        
-        // PASSO 3: Buscar QR Code PIX se disponível
-        if (result.payment?.id) {
-          try {
-            console.log('🔍 Buscando QR Code PIX...');
-            const pixQrResponse = await fetch(`/api/asaas/payments?paymentId=${result.payment.id}`);
-            const pixQrResult = await pixQrResponse.json();
-            
-            if (pixQrResponse.ok && pixQrResult.payment) {
-              console.log('✅ QR Code obtido:', pixQrResult.payment);
-              setPixQrCode(pixQrResult.payment.pixQrCode);
-              setPixPayload(pixQrResult.payment.pixCopyPaste);
-              setPaymentProcessed(true);
-            } else {
-              // Fallback - usar dados da cobrança criada
-              setPixQrCode(result.payment.pixQrCode || null);
-              setPixPayload(result.payment.pixCopyPaste || null);
-              setPaymentProcessed(true);
-            }
-          } catch (qrError) {
-            console.warn('⚠️ Erro ao buscar QR Code, usando dados da cobrança:', qrError);
-            setPixQrCode(result.payment.pixQrCode || null);
-            setPixPayload(result.payment.pixCopyPaste || null);
-            setPaymentProcessed(true);
-          }
-        } else {
-          setError('Erro: QR Code PIX não foi gerado. Tente novamente.');
-          setLoading(false);
-          return;
-        }
-        
-        // Simular estrutura de subscription para compatibilidade
-        setSubscriptionData({
-          ...result.payment,
-          pix_qr_code: pixQrCode,
-          pix_payload: pixPayload
-        });
-        
-        setLoading(false);
-        return;
-      }
-      
-      // Para outros métodos, manter fluxo original
-      const customerResponse = await fetch('/api/payments/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          name: cardName || userProfile.name || 'Cliente BDC',
-          email: userProfile.email,
-          phone: userProfile.phone || undefined,
-          cpfCnpj: userProfile.cpf_cnpj || undefined,
-        })
-      });
-
-      if (!customerResponse.ok) {
-        const customerError = await customerResponse.json();
-        throw new Error(customerError.error || 'Erro ao criar cliente');
-      }
-
-      const { customer } = await customerResponse.json();
-      console.log('✅ Cliente criado/encontrado:', customer.asaas_customer_id);
-
-      // PASSO 2: Criar assinatura REAL no ASAAS
-      console.log('💳 Criando assinatura REAL no ASAAS...');
-      const billingType = paymentMethod === 'credit' ? 'CREDIT_CARD' : 
-                         paymentMethod === 'boleto' ? 'BOLETO' : 'PIX';
-
-      const subscriptionPayload = {
-        userId: userId,
-        planType: planId,
-        billingType,
-        cycle: 'MONTHLY',
-        creditCard: paymentMethod === 'credit' ? {
-          holderName: cardName,
-          number: cardNumber.replace(/\s/g, ''),
-          expiryMonth: expiryDate.split('/')[0],
-          expiryYear: '20' + expiryDate.split('/')[1],
-          ccv: cvv
-        } : undefined,
-        creditCardHolderInfo: paymentMethod === 'credit' ? {
-          name: cardName || userProfile.name,
-          email: userProfile.email,
-          cpfCnpj: userProfile.cpf_cnpj || undefined,
-          postalCode: undefined, // Será solicitado no futuro se necessário
-          addressNumber: undefined, // Será solicitado no futuro se necessário
-          phone: userProfile.phone || undefined
-        } : undefined
-      };
-
-      console.log('📋 Payload da assinatura:', subscriptionPayload);
-
-      const subscriptionResponse = await fetch('/api/payments/subscriptions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscriptionPayload)
-      });
-
-      if (!subscriptionResponse.ok) {
-        const subscriptionError = await subscriptionResponse.json();
-        console.error('❌ Erro na resposta da API:', subscriptionError);
-        throw new Error(subscriptionError.error || 'Erro ao criar assinatura');
-      }
-
-      const result = await subscriptionResponse.json();
-      console.log('✅ Assinatura criada com sucesso:', result);
-      
-      setSubscriptionData(result.subscription);
-
-      // PASSO 3: Processar resposta baseada no método de pagamento
-      if (paymentMethod === 'boleto') {
-        if (result.subscription.boleto_url) {
-          console.log('📄 URL do boleto recebida');
-          setBoletoUrl(result.subscription.boleto_url);
-          setPaymentProcessed(true);
-        } else {
-          setError('Erro: Boleto não foi gerado. Tente novamente.');
-          setLoading(false);
-          return;
-        }
-      } else if (paymentMethod === 'credit') {
-        console.log('💳 Pagamento com cartão processado');
-        
-        // Para cartão de crédito, verificar se foi aprovado
-        if (result.subscription.status === 'ACTIVE') {
-          setPaymentProcessed(true);
-          if (isPaidPlan) {
-            setShowCategoriesSelector(true);
-          } else {
-            setSuccess(true);
-            setTimeout(() => {
-              router.push('/painel-anunciante');
-            }, 3000);
-          }
-        } else {
-          setError('Pagamento não foi aprovado. Verifique os dados do cartão e tente novamente.');
-          setLoading(false);
-          return;
-        }
-      } else {
-        // Plano gratuito
-        setPaymentProcessed(true);
-        if (isPaidPlan) {
-          setShowCategoriesSelector(true);
-        } else {
-          setSuccess(true);
-          setTimeout(() => {
-            router.push('/painel-anunciante');
-          }, 3000);
         }
       }
-
-    } catch (e) {
-      console.error('❌ Erro ao processar pagamento:', e);
-      setError(`Erro ao processar pagamento: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
-      setLoading(false);
     }
-  };
-  
-  const handleSaveCategories = async (categories: BusinessCategory[]) => {
-    setLoading(true);
+
+    getUser()
+
+    // Obter plano selecionado dos parâmetros da URL
+    const params = new URLSearchParams(window.location.search)
+    const planId = params.get('plan') || 'pequena-empresa'
+    setSelectedPlan(planId)
+  }, [supabase])
+
+  const validateCustomerData = (): boolean => {
+    if (!customerData.name.trim()) {
+      setError('Nome é obrigatório')
+      return false
+    }
+    if (!customerData.email.trim()) {
+      setError('Email é obrigatório')
+      return false
+    }
+    if (!customerData.cpfCnpj.trim()) {
+      setError('CPF/CNPJ é obrigatório')
+      return false
+    }
     
-    try {
-      setSelectedCategories(categories);
-      
-      // Salvar categorias no servidor
-      const response = await fetch('/api/business/categories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: userId,
-          categories
-        })
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Falha ao salvar categorias');
-      }
-      
-      setShowCategoriesSelector(false);
-      setSuccess(true);
-      
-      // Redirecionar após 3 segundos
-      setTimeout(() => {
-        router.push('/painel-anunciante');
-      }, 3000);
-      
-    } catch (e) {
-      console.error('Erro ao salvar categorias:', e);
-      setError(`Erro ao salvar categorias: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
-    } finally {
-      setLoading(false);
+    // Validar formato CPF/CNPJ básico
+    const cleanDoc = customerData.cpfCnpj.replace(/\D/g, '')
+    if (cleanDoc.length !== 11 && cleanDoc.length !== 14) {
+      setError('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos')
+      return false
     }
-  };
 
-  // Formatação de CPF/CNPJ
-  const formatCpfCnpj = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 11) {
+    return true
+  }
+
+  const formatCpfCnpj = (value: string): string => {
+    const cleanValue = value.replace(/\D/g, '')
+    
+    if (cleanValue.length <= 11) {
       // CPF: 000.000.000-00
-      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+      return cleanValue
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+        .replace(/(-\d{2})\d+?$/, '$1')
     } else {
       // CNPJ: 00.000.000/0000-00
-      return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+      return cleanValue
+        .replace(/(\d{2})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1.$2')
+        .replace(/(\d{3})(\d)/, '$1/$2')
+        .replace(/(\d{4})(\d{1,2})/, '$1-$2')
+        .replace(/(-\d{2})\d+?$/, '$1')
     }
-  };
+  }
 
-  // Formatação de telefone
-  const formatPhone = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    if (numbers.length <= 10) {
-      return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
-    } else {
-      return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+  const handleProcessPayment = async () => {
+    if (!validateCustomerData()) return
+    if (!selectedPlan || !PLANS[selectedPlan]) {
+      setError('Por favor, selecione um plano válido')
+      return
     }
-  };
 
-  // Componente para coletar dados do cliente (PIX)
-  const CustomerFormStep = () => (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="mb-6">
-        <FaUser className="text-blue-600 text-4xl mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">Dados para Pagamento PIX</h2>
-        <p className="text-gray-600 text-center mb-6">
-          Para pagamentos PIX, precisamos de alguns dados obrigatórios
-        </p>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nome Completo *
-            </label>
-            <input
-              type="text"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder={userProfile?.name || "Digite seu nome completo"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              CPF ou CNPJ *
-            </label>
-            <input
-              type="text"
-              value={customerCpfCnpj}
-              onChange={(e) => setCustomerCpfCnpj(formatCpfCnpj(e.target.value))}
-              placeholder="000.000.000-00 ou 00.000.000/0000-00"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              maxLength={18}
-              required
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Telefone *
-            </label>
-            <input
-              type="text"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(formatPhone(e.target.value))}
-              placeholder={userProfile?.phone || "(11) 99999-9999"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              maxLength={15}
-              required
-            />
-          </div>
-          
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <FaInfoCircle className="text-blue-600 inline mr-2" />
-            <span className="text-blue-800 text-sm">
-              Estes dados são obrigatórios pela regulamentação do PIX e serão usados apenas para processar seu pagamento.
-            </span>
-          </div>
-          
-          <div className="flex flex-col md:flex-row gap-4 pt-4">
-            <button
-              type="button"
-              onClick={() => setShowCustomerForm(false)}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Voltar
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !customerName || !customerCpfCnpj || !customerPhone}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Processando...' : 'Gerar PIX'}
-            </button>
-          </div>
-        </form>
+    setIsLoading(true)
+    setError('')
+    setQrCodeUrl('')
+    setPixCopyPaste('')
+
+    try {
+      console.log('🔄 Iniciando processo de pagamento...')
+      console.log('📊 Dados do cliente:', customerData)
+      console.log('💳 Método de pagamento:', selectedPayment)
+      console.log('📦 Plano selecionado:', selectedPlan)
+
+      const plan = PLANS[selectedPlan]
+      
+      // Preparar dados para o ASAAS
+      const cleanCpfCnpj = customerData.cpfCnpj.replace(/\D/g, '')
+      
+      const paymentData = {
+        // Dados do cliente (OBRIGATÓRIOS para PIX)
+        customer: {
+          name: customerData.name.trim(),
+          email: customerData.email.trim(),
+          cpfCnpj: cleanCpfCnpj,
+          phone: customerData.phone?.replace(/\D/g, '') || undefined,
+          postalCode: customerData.postalCode?.replace(/\D/g, '') || undefined,
+          address: customerData.address || undefined,
+          addressNumber: customerData.addressNumber || undefined,
+          complement: customerData.complement || undefined,
+          province: customerData.province || undefined,
+          city: customerData.city || undefined,
+          state: customerData.state || undefined
+        },
+        // Dados da cobrança
+        billingType: selectedPayment,
+        value: plan.price,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 dias
+        description: `Assinatura - ${plan.name}`,
+        externalReference: `subscription-${selectedPlan}-${user?.id}`,
+        // Para cartão de crédito
+        ...(selectedPayment === 'CREDIT_CARD' && {
+          installmentCount: 1,
+          installmentValue: plan.price
+        })
+      }
+
+      console.log('📤 Enviando dados para ASAAS:', paymentData)
+
+      const response = await fetch('/api/asaas/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData),
+      })
+
+      const responseText = await response.text()
+      console.log('📥 Resposta bruta do servidor:', responseText)
+
+      let result
+      try {
+        result = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('❌ Erro ao fazer parse da resposta:', parseError)
+        setError('Erro interno do servidor. Tente novamente.')
+        return
+      }
+
+      if (!response.ok) {
+        console.error('❌ Erro na requisição:', result)
+        setError(result.error || result.details || 'Erro ao processar pagamento')
+        return
+      }
+
+      console.log('✅ Pagamento criado com sucesso:', result)
+
+      // Processar resposta baseada no tipo de pagamento
+      if (selectedPayment === 'PIX') {
+        if (result.pixQrCodeUrl) {
+          setQrCodeUrl(result.pixQrCodeUrl)
+        }
+        if (result.pixCopyAndPaste) {
+          setPixCopyPaste(result.pixCopyAndPaste)
+        }
+        if (!result.pixQrCodeUrl && !result.pixCopyAndPaste) {
+          console.log('⚠️ PIX criado mas sem QR Code. Dados disponíveis:', result)
+          setError('Pagamento PIX criado, mas não foi possível gerar o QR Code. Entre em contato conosco.')
+        }
+      } else if (selectedPayment === 'BOLETO') {
+        if (result.bankSlipUrl) {
+          window.open(result.bankSlipUrl, '_blank')
+        }
+      } else if (selectedPayment === 'CREDIT_CARD') {
+        // Para cartão de crédito, redirecionar para página de dados do cartão
+        router.push(`/checkout/cartao?payment=${result.id}`)
+      }
+
+      // Salvar informações da assinatura no Supabase
+      if (user) {
+        const subscriptionData = {
+          user_id: user.id,
+          plan_id: selectedPlan,
+          plan_name: plan.name,
+          amount: plan.price,
+          billing_type: selectedPayment,
+          asaas_payment_id: result.id,
+          asaas_customer_id: result.customer,
+          status: 'pending',
+          created_at: new Date().toISOString()
+        }
+
+        const { error: dbError } = await supabase
+          .from('subscriptions')
+          .insert([subscriptionData])
+
+        if (dbError) {
+          console.error('❌ Erro ao salvar assinatura no banco:', dbError)
+        } else {
+          console.log('✅ Assinatura salva no banco com sucesso')
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Erro ao processar pagamento:', error)
+      setError('Erro interno. Tente novamente em alguns minutos.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const copyPixCode = () => {
+    if (pixCopyPaste) {
+      navigator.clipboard.writeText(pixCopyPaste)
+      alert('Código PIX copiado para a área de transferência!')
+    }
+  }
+
+  if (!selectedPlan || !PLANS[selectedPlan]) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-4">Plano não encontrado</h2>
+          <p className="text-gray-600 mb-6">O plano selecionado não é válido.</p>
+          <button
+            onClick={() => router.push('/planos')}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Voltar aos Planos
+          </button>
+        </div>
       </div>
-    </div>
-  );
+    )
+  }
 
-  // Componente para exibir QR Code PIX
-  const PixPaymentStep = () => (
-    <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-      <div className="mb-6">
-        <FaQrcode className="text-blue-600 text-6xl mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Pagamento via PIX</h2>
-        <p className="text-gray-600 mb-4">
-          Escaneie o QR Code abaixo ou copie o código PIX para realizar o pagamento
-        </p>
-        
-        <div className="bg-gray-50 p-6 rounded-lg mb-4">
-          {pixQrCode ? (
-            <div>
-              <div className="bg-white p-4 rounded-lg inline-block mb-4">
-                <img 
-                  src={`data:image/png;base64,${pixQrCode}`} 
-                  alt="QR Code PIX" 
-                  className="w-48 h-48 mx-auto"
+  const plan = PLANS[selectedPlan]
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-white py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Finalizar Assinatura</h1>
+          <p className="text-gray-600">Complete seu pagamento e ative seu plano</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Formulário de Dados */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Dados para Pagamento</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome Completo *
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  value={customerData.name}
+                  onChange={(e) => setCustomerData({ ...customerData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Seu nome completo"
+                  required
                 />
               </div>
-              <button
-                onClick={() => {
-                  const textToCopy = pixPayload || pixQrCode || '';
-                  navigator.clipboard.writeText(textToCopy);
-                  alert('Código PIX copiado!');
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-              >
-                Copiar Código PIX
-              </button>
-            </div>
-          ) : (
-            <div className="animate-pulse">
-              <div className="bg-gray-300 w-48 h-48 mx-auto rounded-lg mb-4"></div>
-              <p className="text-gray-500">Gerando QR Code...</p>
-            </div>
-          )}
-        </div>
-        
-        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
-          <FaInfoCircle className="text-yellow-600 inline mr-2" />
-          <span className="text-yellow-800 text-sm">
-            Após o pagamento, sua assinatura será ativada automaticamente em até 5 minutos.
-          </span>
-        </div>
-      </div>
-      
-      <div className="flex flex-col md:flex-row md:justify-between gap-4">
-        <button
-          onClick={() => {
-            setPaymentProcessed(false);
-            setPixQrCode(null);
-            setPixPayload(null);
-            setLoading(false);
-          }}
-          className="inline-flex items-center justify-center text-gray-600 hover:text-gray-800"
-        >
-          <FaArrowLeft className="mr-2" /> Voltar
-        </button>
-        
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
-        >
-          Já Paguei - Verificar Status
-        </button>
-      </div>
-    </div>
-  );
 
-  // Componente para exibir Boleto
-  const BoletoPaymentStep = () => (
-    <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-      <div className="mb-6">
-        <FaBarcode className="text-green-600 text-6xl mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Pagamento via Boleto</h2>
-        <p className="text-gray-600 mb-4">
-          Clique no botão abaixo para abrir seu boleto e realizar o pagamento
-        </p>
-        
-        {boletoUrl ? (
-          <div className="mb-4">
-            <a
-              href={boletoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 inline-block"
-            >
-              Abrir Boleto
-            </a>
-          </div>
-        ) : (
-          <div className="animate-pulse mb-4">
-            <div className="bg-gray-300 w-32 h-10 mx-auto rounded-lg"></div>
-            <p className="text-gray-500 mt-2">Gerando boleto...</p>
-          </div>
-        )}
-        
-        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 mb-4">
-          <FaInfoCircle className="text-yellow-600 inline mr-2" />
-          <span className="text-yellow-800 text-sm">
-            Após o pagamento, sua assinatura será ativada em até 3 dias úteis.
-          </span>
-        </div>
-      </div>
-      
-      <div className="flex flex-col md:flex-row md:justify-between gap-4">
-        <button
-          onClick={() => {
-            setPaymentProcessed(false);
-            setBoletoUrl(null);
-            setLoading(false);
-          }}
-          className="inline-flex items-center justify-center text-gray-600 hover:text-gray-800"
-        >
-          <FaArrowLeft className="mr-2" /> Voltar
-        </button>
-        
-        <button
-          onClick={() => window.location.reload()}
-          className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
-        >
-          Já Paguei - Verificar Status
-        </button>
-      </div>
-    </div>
-  );
-
-  // Se mostrar formulário de dados do cliente para PIX
-  if (showCustomerForm) {
-    return <CustomerFormStep />;
-  }
-
-  // Se processando PIX, mostrar QR Code
-  if (paymentProcessed && paymentMethod === 'pix') {
-    return <PixPaymentStep />;
-  }
-
-  // Se processando Boleto, mostrar boleto
-  if (paymentProcessed && paymentMethod === 'boleto') {
-    return <BoletoPaymentStep />;
-  }
-  
-  if (showCategoriesSelector) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-lg">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">Quase lá!</h2>
-          <p className="text-gray-600 mb-4">
-            Sua assinatura do plano {planName} foi processada com sucesso. Para finalizar, selecione os ramos de atividade da sua empresa para o classificado.
-          </p>
-          
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
-            <div className="flex items-start">
-              <FaTags className="text-blue-600 mt-1 mr-3 flex-shrink-0" />
               <div>
-                <h3 className="font-medium text-blue-800 mb-1">Incluso em seu plano:</h3>
-                <p className="text-sm text-blue-600">
-                  Seu negócio será exibido no classificado do BuscaAquiBDC, aumentando sua visibilidade para potenciais clientes.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <BusinessCategoriesSelector
-          onSave={handleSaveCategories}
-          onCancel={() => {
-            // Se cancelar, finaliza sem salvar categorias
-            setSuccess(true);
-            setTimeout(() => {
-              router.push('/painel-anunciante');
-            }, 3000);
-          }}
-          initialCategories={selectedCategories}
-          maxSelections={3}
-        />
-      </div>
-    );
-  }
-  
-  if (success) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow-lg text-center">
-        <div className="flex flex-col items-center justify-center mb-6">
-          <div className="bg-green-100 p-3 rounded-full mb-4">
-            <FaCheckCircle className="text-green-600 text-4xl" />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Assinatura Confirmada!</h2>
-          <p className="text-gray-600">
-            Sua assinatura do plano {planName} foi realizada com sucesso.
-          </p>
-          {trialEligible && (
-            <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100 max-w-md">
-              <div className="flex">
-                <FaInfoCircle className="text-blue-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h3 className="font-bold text-blue-800 mb-1">30 dias grátis ativados!</h3>
-                  <p className="text-sm text-blue-600">
-                    Você tem acesso a todos os recursos do plano por 30 dias sem custo. 
-                    Após esse período, será cobrado R$ {planPrice.toFixed(2).replace('.', ',')} mensalmente.
-                  </p>
-                  {trialEndDate && (
-                    <p className="text-sm text-blue-600 mt-2">
-                      <strong>Período grátis até:</strong> {trialEndDate.toLocaleDateString('pt-BR')}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {selectedCategories.length > 0 && (
-            <div className="mt-4 bg-blue-50 p-4 rounded-lg border border-blue-100 max-w-md w-full">
-              <div className="flex">
-                <FaTags className="text-blue-600 mt-1 mr-3 flex-shrink-0" />
-                <div>
-                  <h3 className="font-bold text-blue-800 mb-1">Seu negócio no classificado!</h3>
-                  <p className="text-sm text-blue-600 mb-2">
-                    Seu perfil será exibido nos seguintes ramos de atividade:
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedCategories.map((category) => (
-                      <span 
-                        key={category} 
-                        className="inline-block bg-white text-blue-700 text-xs px-2 py-1 rounded-full border border-blue-200"
-                      >
-                        {businessCategoryNames[category]}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          <p className="text-gray-600 mt-2">
-            Você agora é um <span className="font-bold text-blue-600">Parceiro Verificado</span> e terá acesso a todos os recursos disponíveis.
-          </p>
-        </div>
-        <p className="text-sm text-gray-500">
-          Você será redirecionado para o painel do anunciante em instantes...
-        </p>
-      </div>
-    );
-  }
-  
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-blue-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link 
-              href="/painel-anunciante/planos"
-              className="flex items-center text-gray-600 hover:text-gray-800 transition-colors duration-200"
-            >
-              <FaArrowLeft className="mr-2" />
-              <span className="font-medium">Voltar aos Planos</span>
-            </Link>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <FaLock className="text-green-600" />
-              <span>Pagamento 100% Seguro</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-3 gap-8">
-          
-          {/* Coluna Principal - Formulário */}
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
-              
-              {/* Header do Card */}
-              <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h1 className="text-2xl font-bold text-white">Finalizar Assinatura</h1>
-                    <p className="text-blue-100 mt-1">Complete sua assinatura em instantes</p>
-                  </div>
-                  <div className="bg-white/20 rounded-full p-3">
-                    <FaShieldAlt className="text-2xl text-white" />
-                  </div>
-                </div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                  E-mail *
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={customerData.email}
+                  onChange={(e) => setCustomerData({ ...customerData, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="seu@email.com"
+                  required
+                />
               </div>
 
-              {/* Conteúdo do Form */}
-              <div className="p-8 bg-white">
-                {!paymentProcessed && !success && !showCategoriesSelector && (
-                  <div className="space-y-8">
-                    
-                    {/* Trial Notice - Só mostra se trial está ativo */}
-                    {trialEligible && (
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6">
-                        <div className="flex items-start">
-                          <div className="bg-green-500 rounded-full p-2 mr-4">
-                            <FaInfoCircle className="text-white text-lg" />
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-green-800 mb-2">🎉 30 dias grátis ativados!</h3>
-                            <p className="text-green-700">
-                              Você não será cobrado durante os 30 dias iniciais. Cancele a qualquer momento antes do final do período de teste.
-                            </p>
-                            {trialEndDate && (
-                              <p className="text-sm text-green-600 mt-2 font-medium">
-                                <strong>Período grátis até:</strong> {trialEndDate.toLocaleDateString('pt-BR')}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+              <div>
+                <label htmlFor="cpfCnpj" className="block text-sm font-medium text-gray-700 mb-1">
+                  CPF/CNPJ *
+                </label>
+                <input
+                  type="text"
+                  id="cpfCnpj"
+                  value={customerData.cpfCnpj}
+                  onChange={(e) => setCustomerData({ ...customerData, cpfCnpj: formatCpfCnpj(e.target.value) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  required
+                />
+              </div>
 
-                    {/* Métodos de Pagamento */}
+              <div>
+                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  value={customerData.phone}
+                  onChange={(e) => setCustomerData({ ...customerData, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="(11) 99999-9999"
+                />
+              </div>
+            </div>
+
+            {/* Método de Pagamento */}
+            <div className="mt-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Método de Pagamento</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {PAYMENT_METHODS.map((method) => (
+                  <label
+                    key={method.id}
+                    className={`relative flex items-center p-4 border rounded-lg cursor-pointer transition-all ${
+                      selectedPayment === method.id
+                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="payment"
+                      value={method.id}
+                      checked={selectedPayment === method.id}
+                      onChange={(e) => setSelectedPayment(e.target.value)}
+                      className="sr-only"
+                    />
+                    <span className="text-2xl mr-3">{method.icon}</span>
                     <div>
-                      <h2 className="text-xl font-semibold mb-6 text-gray-900">Escolha sua forma de pagamento</h2>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        
-                        {/* PIX */}
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('pix')}
-                          className={`relative p-6 rounded-xl border-2 transition-all duration-300 group ${
-                            paymentMethod === 'pix' 
-                              ? 'border-green-500 bg-green-50 shadow-lg transform scale-105' 
-                              : 'border-gray-200 hover:border-green-300 hover:shadow-md hover:scale-102'
-                          }`}
-                        >
-                          <div className="text-center">
-                            <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center transition-all duration-300 ${
-                              paymentMethod === 'pix' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-green-100 group-hover:text-green-600'
-                            }`}>
-                              <FaQrcode className="text-2xl" />
-                            </div>
-                            <h3 className="font-bold text-gray-900 mb-1">PIX</h3>
-                            <p className="text-sm text-gray-600">Pagamento instantâneo</p>
-                            <p className="text-xs text-green-600 mt-1 font-medium">Aprovação imediata</p>
-                            {paymentMethod === 'pix' && (
-                              <div className="absolute -top-2 -right-2 bg-green-500 rounded-full p-1">
-                                <FaCheckCircle className="text-white text-lg" />
-                              </div>
-                            )}
-                          </div>
-                        </button>
-
-                        {/* Boleto */}
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('boleto')}
-                          className={`relative p-6 rounded-xl border-2 transition-all duration-300 group ${
-                            paymentMethod === 'boleto' 
-                              ? 'border-orange-500 bg-orange-50 shadow-lg transform scale-105' 
-                              : 'border-gray-200 hover:border-orange-300 hover:shadow-md hover:scale-102'
-                          }`}
-                        >
-                          <div className="text-center">
-                            <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center transition-all duration-300 ${
-                              paymentMethod === 'boleto' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-orange-100 group-hover:text-orange-600'
-                            }`}>
-                              <FaBarcode className="text-2xl" />
-                            </div>
-                            <h3 className="font-bold text-gray-900 mb-1">Boleto</h3>
-                            <p className="text-sm text-gray-600">Vencimento em 3 dias</p>
-                            <p className="text-xs text-orange-600 mt-1 font-medium">Aprovação em até 3 dias</p>
-                            {paymentMethod === 'boleto' && (
-                              <div className="absolute -top-2 -right-2 bg-orange-500 rounded-full p-1">
-                                <FaCheckCircle className="text-white text-lg" />
-                              </div>
-                            )}
-                          </div>
-                        </button>
-
-                        {/* Cartão de Crédito */}
-                        <button
-                          type="button"
-                          onClick={() => setPaymentMethod('credit')}
-                          className={`relative p-6 rounded-xl border-2 transition-all duration-300 group ${
-                            paymentMethod === 'credit' 
-                              ? 'border-blue-500 bg-blue-50 shadow-lg transform scale-105' 
-                              : 'border-gray-200 hover:border-blue-300 hover:shadow-md hover:scale-102'
-                          }`}
-                        >
-                          <div className="text-center">
-                            <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center transition-all duration-300 ${
-                              paymentMethod === 'credit' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 group-hover:bg-blue-100 group-hover:text-blue-600'
-                            }`}>
-                              <FaCreditCard className="text-2xl" />
-                            </div>
-                            <h3 className="font-bold text-gray-900 mb-1">Cartão</h3>
-                            <p className="text-sm text-gray-600">Crédito ou débito</p>
-                            <p className="text-xs text-blue-600 mt-1 font-medium">Aprovação instantânea</p>
-                            {paymentMethod === 'credit' && (
-                              <div className="absolute -top-2 -right-2 bg-blue-500 rounded-full p-1">
-                                <FaCheckCircle className="text-white text-lg" />
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      </div>
+                      <div className="font-medium text-gray-900">{method.name}</div>
+                      <div className="text-sm text-gray-500">{method.description}</div>
                     </div>
-
-                    {/* Dados do Cartão - Só aparece se cartão selecionado */}
-                    {paymentMethod === 'credit' && (
-                      <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl p-6 border border-gray-200">
-                        <h3 className="text-lg font-semibold mb-6 text-gray-900 flex items-center">
-                          <FaCreditCard className="mr-3 text-blue-600" />
-                          Dados do Cartão de Crédito
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Número do cartão *
-                            </label>
-                            <div className="relative">
-                              <input
-                                type="text"
-                                placeholder="0000 0000 0000 0000"
-                                value={cardNumber}
-                                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').slice(0, 19))}
-                                className="w-full pl-12 pr-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg transition-all duration-200"
-                                maxLength={19}
-                                required
-                              />
-                              <FaRegCreditCard className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg" />
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Nome no cartão *
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="Nome como está no cartão"
-                              value={cardName}
-                              onChange={(e) => setCardName(e.target.value)}
-                              className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                            />
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Validade *
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="MM/AA"
-                                value={expiryDate}
-                                onChange={(e) => setExpiryDate(e.target.value.replace(/\D/g, '').replace(/(\d{2})(\d{0,2})/, '$1/$2').slice(0, 5))}
-                                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                maxLength={5}
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-gray-700 mb-2">
-                                CVV *
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="000"
-                                value={cvv}
-                                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                                className="w-full px-4 py-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                maxLength={4}
-                              />
-                            </div>
-                          </div>
-
-                          <div className="md:col-span-2">
-                            <label className="flex items-center space-x-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={saveCard}
-                                onChange={(e) => setSaveCard(e.target.checked)}
-                                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                              />
-                              <span className="text-sm text-gray-700">Salvar cartão para pagamentos futuros</span>
-                            </label>
-                          </div>
-                        </div>
-                      </div>
+                    {selectedPayment === method.id && (
+                      <span className="absolute right-4 text-blue-500">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </span>
                     )}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
 
-                    {/* Informações específicas do método */}
-                    {paymentMethod === 'boleto' && (
-                      <div className="bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl p-6 border border-orange-200">
-                        <div className="flex items-start">
-                          <FaInfoCircle className="text-orange-600 mt-1 mr-4 text-lg flex-shrink-0" />
-                          <div>
-                            <h4 className="font-semibold text-orange-800 mb-2">Informações sobre o Boleto</h4>
-                            <p className="text-orange-700 text-sm mb-2">
-                              Ao selecionar boleto, você receberá um boleto bancário que pode ser pago em qualquer agência bancária, internet banking ou casas lotéricas.
-                            </p>
-                            <p className="text-orange-600 text-sm font-medium">
-                              ⚡ Seu plano será ativado após a confirmação do pagamento, que pode levar até 3 dias úteis.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+          {/* Resumo do Pedido */}
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Resumo do Pedido</h2>
+            
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white mb-6">
+              <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+              <p className="text-blue-100 mb-4">{plan.description}</p>
+              <div className="text-3xl font-bold">
+                R$ {plan.price.toFixed(2).replace('.', ',')}
+                <span className="text-lg text-blue-100 font-normal">/mês</span>
+              </div>
+            </div>
 
-                    {paymentMethod === 'pix' && (
-                      <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                        <div className="flex items-start">
-                          <FaQrcode className="text-green-600 mt-1 mr-4 text-lg flex-shrink-0" />
-                          <div>
-                            <h4 className="font-semibold text-green-800 mb-2">Vantagens do PIX</h4>
-                            <p className="text-green-700 text-sm mb-2">
-                              Ao selecionar PIX, você receberá um QR Code na próxima tela para realizar o pagamento instantâneo.
-                            </p>
-                            <p className="text-green-600 text-sm font-medium">
-                              ⚡ Seu plano será ativado assim que o pagamento for confirmado, geralmente em segundos.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+            <div className="space-y-3 mb-6">
+              <h4 className="font-medium text-gray-900">Recursos inclusos:</h4>
+              {plan.features.map((feature, index) => (
+                <div key={index} className="flex items-center text-sm text-gray-600">
+                  <svg className="w-4 h-4 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {feature}
+                </div>
+              ))}
+            </div>
 
-                    {/* Exibir erro se houver */}
-                    {error && (
-                      <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                        <div className="flex items-start">
-                          <div className="bg-red-500 rounded-full p-1 mr-3 mt-0.5">
-                            <FaTimes className="text-white text-sm" />
-                          </div>
-                          <div>
-                            <h4 className="font-medium text-red-800 mb-1">Erro no processamento</h4>
-                            <p className="text-red-700 text-sm">{error}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex">
+                  <svg className="w-5 h-5 text-red-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-red-700 text-sm">{error}</span>
+                </div>
+              </div>
+            )}
 
-                    {/* Botão de Confirmação */}
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pt-6 border-t border-gray-200">
-                      <Link 
-                        href="/painel-anunciante/planos" 
-                        className="inline-flex items-center text-gray-600 hover:text-gray-800 transition-colors duration-200"
-                      >
-                        <FaArrowLeft className="mr-2" /> 
-                        <span>Voltar para planos</span>
-                      </Link>
-                      
+            {/* PIX Payment Results */}
+            {selectedPayment === 'PIX' && (qrCodeUrl || pixCopyPaste) && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <h4 className="font-medium text-green-800 mb-3">✅ PIX Gerado com Sucesso!</h4>
+                
+                {qrCodeUrl && (
+                  <div className="text-center mb-4">
+                    <img src={qrCodeUrl} alt="QR Code PIX" className="mx-auto max-w-48 max-h-48" />
+                    <p className="text-sm text-green-600 mt-2">Escaneie o QR Code com seu banco</p>
+                  </div>
+                )}
+                
+                {pixCopyPaste && (
+                  <div>
+                    <p className="text-sm text-green-600 mb-2">Ou copie o código PIX:</p>
+                    <div className="flex">
+                      <input
+                        type="text"
+                        value={pixCopyPaste}
+                        readOnly
+                        className="flex-1 px-3 py-2 bg-white border border-green-300 rounded-l-lg text-xs"
+                      />
                       <button
-                        onClick={handleSubmit}
-                        disabled={loading}
-                        className={`px-8 py-4 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105 ${
-                          loading 
-                            ? 'bg-gray-400 cursor-not-allowed' 
-                            : 'bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800'
-                        }`}
+                        onClick={copyPixCode}
+                        className="px-4 py-2 bg-green-600 text-white rounded-r-lg hover:bg-green-700"
                       >
-                        {loading ? (
-                          <div className="flex items-center">
-                            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-3"></div>
-                            Processando...
-                          </div>
-                        ) : (
-                          <div className="flex items-center">
-                            <FaLock className="mr-2" />
-                            {trialEligible ? 'Ativar período grátis' : `Confirmar assinatura`}
-                          </div>
-                        )}
+                        Copiar
                       </button>
                     </div>
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Estados de processamento, sucesso e categorias mantidos iguais... */}
-                {/* [Resto do código mantido] */}
-              </div>
-            </div>
-          </div>
+            <button
+              onClick={handleProcessPayment}
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {isLoading ? (
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processando...
+                </div>
+              ) : (
+                `Pagar R$ ${plan.price.toFixed(2).replace('.', ',')}`
+              )}
+            </button>
 
-          {/* Sidebar - Resumo do Plano */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden sticky top-8">
-              <div className="bg-gradient-to-r from-gray-800 to-gray-900 p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xl font-bold text-white">{planName}</h3>
-                  <div className="bg-white/20 rounded-full p-2">
-                    <FaCrown className="text-yellow-300 text-lg" />
-                  </div>
-                </div>
-                
-                {trialEligible ? (
-                  <div className="space-y-2">
-                    <div className="text-3xl font-bold text-green-400">
-                      Grátis
-                    </div>
-                    <p className="text-sm text-gray-300">
-                      por 30 dias, depois R$ {planPrice.toFixed(2).replace('.', ',')}/mês
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-3xl font-bold text-white">
-                    R$ {planPrice.toFixed(2).replace('.', ',')}
-                    <span className="text-lg font-normal text-gray-300">/mês</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="p-6 bg-white">
-                <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
-                  <FaCheckCircle className="mr-2 text-green-500" />
-                  Incluído no plano:
-                </h4>
-                <div className="space-y-3">
-                  {planFeatures.map((feature, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <FaCheckCircle className="text-green-500 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm text-gray-700">{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="bg-gradient-to-r from-gray-50 to-blue-50 p-6 border-t">
-                <div className="flex items-center justify-center space-x-3 text-sm text-gray-700">
-                  <FaShieldAlt className="text-green-500 text-lg" />
-                  <span className="font-medium">Pagamento 100% seguro e criptografado</span>
-                </div>
-                <div className="flex items-center justify-center space-x-2 mt-3 text-xs text-gray-600">
-                  <span>🔒 SSL</span>
-                  <span>•</span>
-                  <span>256-bit</span>
-                  <span>•</span>
-                  <span>ASAAS</span>
-                </div>
-              </div>
-            </div>
+            <p className="text-xs text-gray-500 text-center mt-4">
+              Ao continuar, você concorda com nossos termos de serviço
+            </p>
           </div>
         </div>
       </div>
     </div>
-  );
+  )
 } 
