@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SubscriptionPlan, BusinessCategory, businessCategoryNames } from '../../../models/types';
-import { FaCheckCircle, FaCreditCard, FaSpinner, FaBarcode, FaQrcode, FaTimes, FaArrowLeft, FaInfoCircle, FaRegCreditCard, FaTags, FaLock, FaShieldAlt, FaCrown } from 'react-icons/fa';
+import { FaCheckCircle, FaCreditCard, FaSpinner, FaBarcode, FaQrcode, FaTimes, FaArrowLeft, FaInfoCircle, FaRegCreditCard, FaTags, FaLock, FaShieldAlt, FaCrown, FaUser } from 'react-icons/fa';
 import Link from 'next/link';
 import { calculateTrialEndDate, isEligibleForTrial } from '../../../lib/subscriptionHelper';
 import BusinessCategoriesSelector from './BusinessCategoriesSelector';
@@ -43,6 +43,12 @@ export default function SubscriptionCheckout({
   const [boletoUrl, setBoletoUrl] = useState<string | null>(null);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Estados para dados do cliente (formulário PIX)
+  const [customerName, setCustomerName] = useState('');
+  const [customerCpfCnpj, setCustomerCpfCnpj] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
   
   const isPaidPlan = planId !== SubscriptionPlan.FREE;
   
@@ -191,9 +197,14 @@ export default function SubscriptionCheckout({
       if (paymentMethod === 'pix') {
         console.log('💳 PIX detectado - usando fluxo simplificado');
         
-        // Validação obrigatória: CPF/CNPJ é necessário para PIX
-        if (!userProfile.cpf_cnpj) {
-          setError('Para pagamentos PIX é obrigatório ter CPF ou CNPJ cadastrado. Complete seu perfil primeiro.');
+        // Validação: CPF/CNPJ é necessário para PIX
+        const cpfCnpjToUse = customerCpfCnpj || userProfile.cpf_cnpj;
+        const nameToUse = customerName || userProfile.name || 'Cliente';
+        const phoneToUse = customerPhone || userProfile.phone || "11999999999";
+        
+        if (!cpfCnpjToUse) {
+          // Mostrar formulário para coletar dados
+          setShowCustomerForm(true);
           setLoading(false);
           return;
         }
@@ -201,10 +212,10 @@ export default function SubscriptionCheckout({
         // PASSO 1: Criar cliente primeiro (obrigatório no ASAAS)
         console.log('👤 Criando cliente no ASAAS...');
         const customerData = {
-          name: cardName || userProfile.name || 'Cliente',
+          name: nameToUse,
           email: userProfile.email,
-          phone: userProfile.phone || "11999999999", // Temporário para PIX
-          cpfCnpj: userProfile.cpf_cnpj || undefined // OBRIGATÓRIO PARA PIX!
+          phone: phoneToUse,
+          cpfCnpj: cpfCnpjToUse // OBRIGATÓRIO PARA PIX!
         };
 
         const customerResponse = await fetch('/api/payments/customers', {
@@ -447,6 +458,111 @@ export default function SubscriptionCheckout({
     }
   };
 
+  // Formatação de CPF/CNPJ
+  const formatCpfCnpj = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 11) {
+      // CPF: 000.000.000-00
+      return numbers.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    } else {
+      // CNPJ: 00.000.000/0000-00
+      return numbers.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+  };
+
+  // Formatação de telefone
+  const formatPhone = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 10) {
+      return numbers.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+    } else {
+      return numbers.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+    }
+  };
+
+  // Componente para coletar dados do cliente (PIX)
+  const CustomerFormStep = () => (
+    <div className="bg-white p-6 rounded-lg shadow-lg">
+      <div className="mb-6">
+        <FaUser className="text-blue-600 text-4xl mx-auto mb-4" />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2 text-center">Dados para Pagamento PIX</h2>
+        <p className="text-gray-600 text-center mb-6">
+          Para pagamentos PIX, precisamos de alguns dados obrigatórios
+        </p>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nome Completo *
+            </label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              placeholder={userProfile?.name || "Digite seu nome completo"}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              CPF ou CNPJ *
+            </label>
+            <input
+              type="text"
+              value={customerCpfCnpj}
+              onChange={(e) => setCustomerCpfCnpj(formatCpfCnpj(e.target.value))}
+              placeholder="000.000.000-00 ou 00.000.000/0000-00"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              maxLength={18}
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Telefone *
+            </label>
+            <input
+              type="text"
+              value={customerPhone}
+              onChange={(e) => setCustomerPhone(formatPhone(e.target.value))}
+              placeholder={userProfile?.phone || "(11) 99999-9999"}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              maxLength={15}
+              required
+            />
+          </div>
+          
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <FaInfoCircle className="text-blue-600 inline mr-2" />
+            <span className="text-blue-800 text-sm">
+              Estes dados são obrigatórios pela regulamentação do PIX e serão usados apenas para processar seu pagamento.
+            </span>
+          </div>
+          
+          <div className="flex flex-col md:flex-row gap-4 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowCustomerForm(false)}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Voltar
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !customerName || !customerCpfCnpj || !customerPhone}
+              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? 'Processando...' : 'Gerar PIX'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   // Componente para exibir QR Code PIX
   const PixPaymentStep = () => (
     <div className="bg-white p-6 rounded-lg shadow-lg text-center">
@@ -574,6 +690,11 @@ export default function SubscriptionCheckout({
       </div>
     </div>
   );
+
+  // Se mostrar formulário de dados do cliente para PIX
+  if (showCustomerForm) {
+    return <CustomerFormStep />;
+  }
 
   // Se processando PIX, mostrar QR Code
   if (paymentProcessed && paymentMethod === 'pix') {
