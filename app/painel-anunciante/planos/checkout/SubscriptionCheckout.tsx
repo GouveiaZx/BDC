@@ -191,12 +191,20 @@ export default function SubscriptionCheckout({
       if (paymentMethod === 'pix') {
         console.log('💳 PIX detectado - usando fluxo simplificado');
         
+        // Validação obrigatória: CPF/CNPJ é necessário para PIX
+        if (!userProfile.cpf_cnpj) {
+          setError('Para pagamentos PIX é obrigatório ter CPF ou CNPJ cadastrado. Complete seu perfil primeiro.');
+          setLoading(false);
+          return;
+        }
+        
         // PASSO 1: Criar cliente primeiro (obrigatório no ASAAS)
         console.log('👤 Criando cliente no ASAAS...');
         const customerData = {
           name: cardName || userProfile.name || 'Cliente',
           email: userProfile.email,
-          phone: userProfile.phone || "11999999999" // Temporário para PIX
+          phone: userProfile.phone || "11999999999", // Temporário para PIX
+          cpfCnpj: userProfile.cpf_cnpj || undefined // OBRIGATÓRIO PARA PIX!
         };
 
         const customerResponse = await fetch('/api/payments/customers', {
