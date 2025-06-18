@@ -334,6 +334,7 @@ export class AsaasClient {
 }
 
 // Instância global configurada CONFORME DOCUMENTAÇÃO OFICIAL
+// FORCE REBUILD - VERSION 2.0 - TIMESTAMP: 2025-01-19
 console.log('🔧 [ASAAS] Configurando cliente com variáveis:', {
   apiKey: process.env.ASAAS_API_KEY ? '[PRESENTE]' : '[AUSENTE]',
   apiUrl: process.env.ASAAS_API_URL || '[USANDO DEFAULT]',
