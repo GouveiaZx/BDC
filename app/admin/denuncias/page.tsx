@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FaTrash, FaCheck, FaTimes, FaEye, FaUserSlash, FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'react-hot-toast';
@@ -80,7 +80,7 @@ function DenunciasPage() {
     }
   }, [isAuthenticated, searchParams]);
   
-  const fetchReports = async (status: string, page: number) => {
+  const fetchReports = useCallback(async (status: string, page: number) => {
     setLoading(true);
     try {
       // Calcular offset para paginação
@@ -132,7 +132,11 @@ function DenunciasPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [logout]);
+  
+  useEffect(() => {
+    fetchReports(filter, currentPage);
+  }, [fetchReports, filter, currentPage]);
   
   const handlePageChange = (page: number) => {
     setCurrentPage(page);

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   FaMoneyBillWave, 
@@ -273,7 +273,7 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string | null>(null);
 
   // Função para buscar dados do dashboard
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -445,7 +445,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
   
   // Função para gerar dados do gráfico
   const gerarDadosGrafico = (porPlano: { basico: number; premium: number; pro: number }) => {
@@ -521,7 +521,7 @@ export default function AdminDashboard() {
   // Efeito para carregar dados iniciais
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
   
   return (
     <div className="p-6 bg-gray-50 min-h-screen">

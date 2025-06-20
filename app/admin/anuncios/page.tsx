@@ -763,9 +763,11 @@ function AdminAnuncios() {
             <div className="bg-gray-100 p-3 rounded-lg mb-6">
               <div className="flex items-center">
                 <div className="h-10 w-10 flex-shrink-0">
-                  <img 
+                  <Image 
                     src={adToDelete.images[0] || '/images/placeholder.jpg'} 
                     alt=""
+                    width={40}
+                    height={40}
                     className="h-10 w-10 rounded-md object-cover"
                   />
                 </div>

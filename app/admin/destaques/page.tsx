@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
@@ -606,12 +606,7 @@ export default function AdminDestaques() {
     return true;
   });
   
-  useEffect(() => {
-    fetchHighlights();
-  }, []);
-  
-  // Função para buscar destaques
-  const fetchHighlights = async () => {
+  const fetchHighlights = useCallback(async () => {
     try {
       console.log('Iniciando busca de destaques');
       
@@ -644,7 +639,18 @@ export default function AdminDestaques() {
     } catch (error) {
       console.error('Erro ao buscar destaques:', error);
     }
-  };
+  }, [statusFilter, searchTerm]);
+  
+  useEffect(() => {
+    fetchHighlights();
+  }, [fetchHighlights]);
+  
+  useEffect(() => {
+    if (highlights.length > 0) {
+      const pendingCount = highlights.filter(highlight => highlight.status === 'pending').length;
+      setPendingCount(pendingCount);
+    }
+  }, [fetchHighlights, highlights.length]);
   
   // Efeito para reagir às mudanças nos filtros
   useEffect(() => {
