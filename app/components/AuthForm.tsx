@@ -366,9 +366,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
         const redirectUrl = getRedirectUrl();
         console.log('🎯 Redirecionando para:', redirectUrl);
         
-        // Redirecionar após pequeno delay
+        // Redirecionar para a página apropriada com delay maior para garantir sincronização
         setTimeout(() => {
-          window.location.href = redirectUrl;
+          window.location.assign(redirectUrl);
         }, 1000);
       } else {
         throw new Error('Dados do usuário não encontrados');
@@ -506,10 +506,10 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
             const redirectUrl = redirectParam ? decodeURIComponent(redirectParam) : '/planos';
             console.log('🎯 Redirecionando usuário registrado para:', redirectUrl);
             
-            // Redirecionar para a página apropriada
+            // Redirecionar para a página apropriada com delay maior para garantir sincronização
             setTimeout(() => {
-              window.location.href = redirectUrl;
-            }, 1500);
+              window.location.assign(redirectUrl);
+            }, 2000);
             
             return;
           }

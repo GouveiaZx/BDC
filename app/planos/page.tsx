@@ -10,65 +10,33 @@ import { useRouter } from 'next/navigation';
 import { PLANS_CONFIG, formatPrice, getPlanById, PLAN_COLORS } from '../lib/plansConfig';
 
 export default function Planos() {
-  const [faqOpen, setFaqOpen] = useState<number | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const { currentPlan, planDisplayName, isLoading } = useSubscription();
   const router = useRouter();
+  const { currentPlan, planDisplayName, isLoading } = useSubscription();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [faqOpen, setFaqOpen] = useState<number | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   
   useEffect(() => {
-    // Verificar se o usuário está logado
     const checkAuth = async () => {
-      try {
-        // Primeiro verificar localStorage para resposta rápida
-        const isLoggedInLS = localStorage.getItem('isLoggedIn') === 'true';
-        const userId = localStorage.getItem('userId');
-        const accessToken = localStorage.getItem('sb-access-token');
-        
-        console.log('Estado de autenticação local:', {
-          isLoggedInLS,
-          hasUserId: !!userId,
-          hasToken: !!accessToken
-        });
-        
-        if (isLoggedInLS || userId || accessToken) {
-          console.log('Usuário está logado localmente');
-          setIsLoggedIn(true);
-          return;
-        }
-        
-        // Se não tem dados locais, verificar com a API
-        const response = await fetch('/api/auth/check', { 
-          method: 'GET',
-          credentials: 'include',
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log('Resposta da API de auth:', data);
-          if (data.authenticated) {
-          setIsLoggedIn(true);
-            // Salvar no localStorage para próximas verificações
-            localStorage.setItem('isLoggedIn', 'true');
-            if (data.user?.id) {
-              localStorage.setItem('userId', data.user.id);
-            }
-            if (data.user?.email) {
-              localStorage.setItem('userEmail', data.user.email);
-            }
-            if (data.user?.name) {
-              localStorage.setItem('userName', data.user.name);
-            }
-          }
-        } else {
-          console.log('Usuário não autenticado pela API');
-          setIsLoggedIn(false);
-        }
-      } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
-        // Em caso de erro, verificar se há dados locais como fallback
-        const isLoggedInLS = localStorage.getItem('isLoggedIn') === 'true';
-        setIsLoggedIn(isLoggedInLS);
-      }
+      // Adicionar pequeno delay para garantir que o localStorage foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Verificar múltiplas fontes de autenticação
+      const isLoggedInLS = localStorage.getItem('isLoggedIn') === 'true';
+      const userId = localStorage.getItem('userId');
+      const accessToken = localStorage.getItem('sb-access-token');
+      
+      const isAuthenticated = !!(isLoggedInLS || userId || accessToken);
+      setIsLoggedIn(isAuthenticated);
+      setAuthChecked(true);
+      
+      console.log('🔍 Auth check na página de planos:', {
+        isLoggedInLS,
+        hasUserId: !!userId,
+        hasToken: !!accessToken,
+        isAuthenticated,
+        timestamp: new Date().toISOString()
+      });
     };
     
     checkAuth();
@@ -161,7 +129,7 @@ export default function Planos() {
     if (!isAuthenticated) {
       console.log('❌ Usuário não está logado, redirecionando para login');
       const redirectUrl = `/login?redirect=${encodeURIComponent('/planos')}`;
-      window.location.href = redirectUrl;
+      window.location.assign(redirectUrl);
       return;
     }
 
@@ -185,8 +153,8 @@ export default function Planos() {
       localStorage.setItem('selectedPlanName', plan.name);
       localStorage.setItem('selectedPlanPrice', plan.price.toString());
       
-      // Usar window.location.href para garantir navegação
-      window.location.href = checkoutUrl;
+      // Usar window.location.assign para garantir navegação correta (mesmo método do painel anunciante)
+      window.location.assign(checkoutUrl);
     } catch (error) {
       console.error('Erro ao redirecionar para checkout:', error);
       // Fallback: tentar com router.push
@@ -240,7 +208,7 @@ export default function Planos() {
         // Redirecionar para o painel independentemente do resultado da API
         console.log('Redirecionando para o painel (modo simplificado)...');
         setTimeout(() => {
-          window.location.href = '/painel-anunciante';
+          window.location.assign('/painel-anunciante');
         }, 500);
       });
       
@@ -276,7 +244,7 @@ export default function Planos() {
         // Redirecionar para o painel após um breve delay para permitir que os cookies sejam salvos
         console.log('Redirecionando para o painel de anunciante...');
         setTimeout(() => {
-          window.location.href = '/painel-anunciante';
+          window.location.assign('/painel-anunciante');
         }, 500);
       } else {
         console.error('Erro ao ativar plano gratuito:', data.message);
@@ -289,7 +257,19 @@ export default function Planos() {
     });
   };
 
-
+  // Mostrar loading enquanto verifica autenticação e carrega assinatura
+  if (!authChecked || isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8 sm:py-16 bg-white">
+        <div className="flex justify-center items-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando planos...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 sm:py-16 bg-white">
