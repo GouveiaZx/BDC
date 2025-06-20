@@ -70,7 +70,7 @@ export async function PATCH(request: NextRequest) {
     console.log('(Moderate API) 🔍 Verificando se anúncio existe:', adId);
     const { data: existingAd, error: fetchError } = await supabase
       .from('ads')
-      .select('*')
+      .select('*, users!inner(name, email)')
       .eq('id', adId)
       .single();
     
@@ -86,17 +86,23 @@ export async function PATCH(request: NextRequest) {
       id: existingAd.id,
       title: existingAd.title,
       currentStatus: existingAd.status,
-      currentModerationStatus: existingAd.moderation_status
+      currentModerationStatus: existingAd.moderation_status,
+      userId: existingAd.user_id
     });
     
     // Atualizar o anúncio na tabela 'ads' (nome correto da tabela)
     const updateData = {
-      status: action === 'approve' ? 'active' : 'inactive',
+      status: action === 'approve' ? 'active' : 'rejected',
       moderation_status: action === 'approve' ? 'approved' : 'rejected',
       rejection_reason: action === 'reject' ? reason : null,
       moderated_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+    
+    // Se for aprovação, definir data de publicação
+    if (action === 'approve') {
+      updateData['published_at'] = new Date().toISOString();
+    }
     
     console.log('(Moderate API) 📝 Atualizando anúncio com dados:', updateData);
     
@@ -131,6 +137,41 @@ export async function PATCH(request: NextRequest) {
       action: action
     });
     
+    // Criar notificação para o usuário
+    try {
+      let notificationTitle, notificationMessage;
+      
+      if (action === 'approve') {
+        notificationTitle = 'Anúncio aprovado!';
+        notificationMessage = `Seu anúncio "${existingAd.title}" foi aprovado e já está disponível para visualização.`;
+      } else {
+        notificationTitle = 'Anúncio não aprovado';
+        notificationMessage = `Seu anúncio "${existingAd.title}" não foi aprovado. Motivo: ${reason}`;
+      }
+      
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: existingAd.user_id,
+          title: notificationTitle,
+          message: notificationMessage,
+          type: action === 'approve' ? 'ad_approved' : 'ad_rejected',
+          related_entity_type: 'ad',
+          related_entity_id: adId,
+          created_at: new Date().toISOString()
+        });
+      
+      if (notificationError) {
+        console.error('(Moderate API) ⚠️ Erro ao criar notificação:', notificationError);
+        // Não falhar a operação por causa da notificação
+      } else {
+        console.log('(Moderate API) 📧 Notificação criada com sucesso');
+      }
+    } catch (notifError) {
+      console.error('(Moderate API) ⚠️ Erro ao criar notificação:', notifError);
+      // Continuar mesmo se falhar a notificação
+    }
+    
     // Log da ação para auditoria
     console.log(`(Moderate API) 📊 MODERAÇÃO CONCLUÍDA:
       - Anúncio: ${updatedAd.id}
@@ -139,6 +180,7 @@ export async function PATCH(request: NextRequest) {
       - Status: ${updatedAd.status}
       - Moderação: ${updatedAd.moderation_status}
       - Motivo rejeição: ${updatedAd.rejection_reason || 'N/A'}
+      - Usuário notificado: ${existingAd.user_id}
     `);
     
     return NextResponse.json({ 

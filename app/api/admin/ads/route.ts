@@ -139,13 +139,16 @@ export async function GET(request: NextRequest) {
         .select('*', { count: 'exact' });
       
       if (status && status !== 'all') {
-        // Verificar tanto moderation_status quanto status para compatibilidade
+        // Mapear status para os valores corretos no banco
         if (status === 'pending') {
+          // Buscar anúncios pendentes de moderação
           adsQuery = adsQuery.or('moderation_status.eq.pending,status.eq.pending');
         } else if (status === 'approved') {
-          adsQuery = adsQuery.or('moderation_status.eq.approved,status.eq.active');
+          // Buscar anúncios aprovados e ativos
+          adsQuery = adsQuery.eq('moderation_status', 'approved').eq('status', 'active');
         } else if (status === 'rejected') {
-          adsQuery = adsQuery.or('moderation_status.eq.rejected,status.eq.inactive');
+          // Buscar anúncios rejeitados
+          adsQuery = adsQuery.eq('moderation_status', 'rejected');
         } else {
           adsQuery = adsQuery.eq('status', status);
         }
@@ -168,6 +171,13 @@ export async function GET(request: NextRequest) {
           adsData = adsTableData;
           totalCount = adsCount || 0;
           console.log('(Ads API) ✅ Dados encontrados na tabela ads:', adsData.length);
+          
+          // Log para debug dos status
+          const pendingAds = adsData.filter(ad => ad.moderation_status === 'pending' || ad.status === 'pending');
+          const approvedAds = adsData.filter(ad => ad.moderation_status === 'approved');
+          const rejectedAds = adsData.filter(ad => ad.moderation_status === 'rejected');
+          
+          console.log(`(Ads API) Status dos anúncios: ${pendingAds.length} pendentes, ${approvedAds.length} aprovados, ${rejectedAds.length} rejeitados`);
         } else {
           console.log('(Ads API) Tabela ads não encontrou dados:', adsError?.message || 'Nenhum dado');
         }
@@ -203,7 +213,7 @@ export async function GET(request: NextRequest) {
       try {
         const { data: users, error: usersError } = await admin
           .from('users')
-          .select(`id, name, email, user_type, profile_image_url, phone, whatsapp, avatar_url`)
+          .select(`id, name, email, user_type, profile_image_url, phone, whatsapp`)
           .in('id', uniqueUserIds);
         
         if (!usersError && users) {
@@ -213,8 +223,8 @@ export async function GET(request: NextRequest) {
               name: user.name,
               email: user.email,
               account_type: user.user_type === 'advertiser' ? 'personal' : user.user_type,
-              avatar: user.profile_image_url || user.avatar_url,
-              profile_image: user.profile_image_url || user.avatar_url,
+              avatar: user.profile_image_url,
+              profile_image: user.profile_image_url,
               phone: user.phone,
               whatsapp: user.whatsapp,
               source: 'users'
@@ -336,8 +346,26 @@ export async function GET(request: NextRequest) {
         console.log('(Ads API) ⚠️ Usuário não encontrado para anúncio:', ad.id, 'user_id:', ad.user_id);
       }
       
+      // Garantir que o status de moderação seja consistente
+      let displayStatus = ad.status;
+      let moderationStatus = ad.moderation_status || 'pending';
+      
+      // Se não tiver moderation_status mas status for 'pending', definir como pendente
+      if (!ad.moderation_status && ad.status === 'pending') {
+        moderationStatus = 'pending';
+      }
+      
+      // Se foi aprovado mas ainda está como pending no status, corrigir
+      if (moderationStatus === 'approved' && ad.status === 'pending') {
+        displayStatus = 'active';
+      }
+      
       return {
         ...ad,
+        status: displayStatus,
+        moderation_status: moderationStatus,
+        moderationStatus: moderationStatus, // Campo duplicado para compatibilidade
+        moderationReason: ad.rejection_reason,
         profiles: user.name ? {
           id: ad.user_id,
           name: userName,
@@ -356,11 +384,13 @@ export async function GET(request: NextRequest) {
       };
     });
     
-    const pendingCount = adsData?.filter(ad => ad.status === 'pending').length || 0;
-    const approvedCount = adsData?.filter(ad => ad.status === 'approved' || ad.status === 'active').length || 0;
-    const rejectedCount = adsData?.filter(ad => ad.status === 'rejected' || ad.status === 'inactive').length || 0;
+    // Calcular estatísticas baseadas no moderation_status
+    const pendingCount = formattedData.filter(ad => ad.moderation_status === 'pending').length;
+    const approvedCount = formattedData.filter(ad => ad.moderation_status === 'approved').length;
+    const rejectedCount = formattedData.filter(ad => ad.moderation_status === 'rejected').length;
     
     console.log('(Ads API) 📤 Retornando', formattedData.length, 'anúncios formatados com dados de usuários');
+    console.log(`(Ads API) 📊 Estatísticas: ${pendingCount} pendentes, ${approvedCount} aprovados, ${rejectedCount} rejeitados`);
     
     return NextResponse.json({ 
       success: true, 

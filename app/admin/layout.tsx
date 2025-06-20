@@ -23,7 +23,11 @@ import {
   FaChevronDown,
   FaChevronUp,
   FaTicketAlt,
-  FaRegFlag
+  FaRegFlag,
+  FaAd,
+  FaUsers,
+  FaStar,
+  FaBriefcase
 } from 'react-icons/fa';
 import { Toaster } from 'react-hot-toast';
 import { AdminProvider, useAdmin } from './AdminContext';
@@ -260,6 +264,34 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     );
   };
   
+  const menuItems = [
+    { href: '/admin/dashboard', icon: FaHome, label: 'Dashboard' },
+    { 
+      href: '/admin/anuncios', 
+      icon: FaAd, 
+      label: 'Anúncios',
+      badge: pendingAdsCount > 0 ? pendingAdsCount : null,
+      badgeColor: 'bg-yellow-500'
+    },
+    { href: '/admin/classificados', icon: FaBriefcase, label: 'Classificados' },
+    { 
+      href: '/admin/destaques', 
+      icon: FaStar, 
+      label: 'Destaques'
+    },
+    { href: '/admin/usuarios', icon: FaUsers, label: 'Usuários' },
+    { href: '/admin/cupons', icon: FaTicketAlt, label: 'Cupons' },
+    { href: '/admin/assinaturas', icon: FaCreditCard, label: 'Assinaturas' },
+    { href: '/admin/faturamento', icon: FaChartLine, label: 'Faturamento' },
+    { 
+      href: '/admin/denuncias', 
+      icon: FaExclamationTriangle, 
+      label: 'Denúncias',
+      badge: pendingReportsCount > 0 ? pendingReportsCount : null,
+      badgeColor: 'bg-red-500'
+    },
+  ];
+
   return (
     <div className="admin-layout-wrapper">
       <AdminGlobalStyle />
@@ -359,49 +391,32 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
             </button>
             
             <div className="space-y-1">
-              <NavItem href="/admin/dashboard" icon={<FaHome />} label="Dashboard" />
-              <NavItem href="/admin/assinaturas" icon={<FaCreditCard />} label="Assinaturas" />
-              
-              <NavGroup 
-                label="Anúncios" 
-                icon={<FaClipboardList />} 
-                isOpen={isAnunciosGroupOpen} 
-                toggleOpen={() => setIsAnunciosGroupOpen(!isAnunciosGroupOpen)}
-              >
-                <NavItem 
-                  href="/admin/anuncios?status=all" 
-                  icon={<FaClipboardList />} 
-                  label="Todos" 
-                />
-                <NavItem 
-                  href="/admin/anuncios?status=pending" 
-                  icon={<FaExclamationTriangle className="text-yellow-500" />} 
-                  label="Aguardando" 
-                  count={pendingAdsCount}
-                />
-                <NavItem 
-                  href="/admin/anuncios?status=approved" 
-                  icon={<FaCheck className="text-green-500" />} 
-                  label="Publicados" 
-                />
-                <NavItem 
-                  href="/admin/anuncios?status=rejected" 
-                  icon={<FaTimes className="text-red-500" />} 
-                  label="Recusados" 
-                />
-              </NavGroup>
-              
-              <NavItem 
-                href="/admin/denuncias" 
-                icon={<FaRegFlag className="text-red-500" />} 
-                label="Denúncias" 
-                count={pendingReportsCount}
-              />
-              
-              <NavItem href="/admin/destaques" icon={<FaImages />} label="Destaques/Stories" />
-              <NavItem href="/admin/classificados" icon={<FaStore />} label="Classificados" />
-              <NavItem href="/admin/faturamento" icon={<FaChartLine />} label="Faturamento" />
-              <NavItem href="/admin/cupons" icon={<FaTicketAlt />} label="Cupons" />
+              {menuItems.map((item) => {
+                const isActive = pathname === item.href || 
+                               (item.href === '/admin/anuncios' && pathname.includes('/admin/anuncios'));
+                
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center justify-between px-6 py-3 text-sm transition-colors ${
+                      isActive
+                        ? 'bg-gray-900 text-white border-l-4 border-blue-500'
+                        : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center">
+                      <item.icon className="mr-3" />
+                      {item.label}
+                    </div>
+                    {item.badge && (
+                      <span className={`${item.badgeColor} text-white text-xs rounded-full px-2 py-1 font-bold animate-pulse`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
               
               <button 
                 onClick={handleLogout}
@@ -420,49 +435,32 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Sidebar (para telas maiores) */}
         <aside className="hidden md:block w-64 p-4 bg-white shadow-md">
           <div className="space-y-1">
-            <NavItem href="/admin/dashboard" icon={<FaHome />} label="Dashboard" />
-            <NavItem href="/admin/assinaturas" icon={<FaCreditCard />} label="Assinaturas" />
-            
-            <NavGroup 
-              label="Anúncios" 
-              icon={<FaClipboardList />} 
-              isOpen={isAnunciosGroupOpen} 
-              toggleOpen={() => setIsAnunciosGroupOpen(!isAnunciosGroupOpen)}
-            >
-              <NavItem 
-                href="/admin/anuncios?status=all" 
-                icon={<FaClipboardList />} 
-                label="Todos" 
-              />
-              <NavItem 
-                href="/admin/anuncios?status=pending" 
-                icon={<FaExclamationTriangle className="text-yellow-500" />} 
-                label="Aguardando" 
-                count={pendingAdsCount}
-              />
-              <NavItem 
-                href="/admin/anuncios?status=approved" 
-                icon={<FaCheck className="text-green-500" />} 
-                label="Publicados" 
-              />
-              <NavItem 
-                href="/admin/anuncios?status=rejected" 
-                icon={<FaTimes className="text-red-500" />} 
-                label="Recusados" 
-              />
-            </NavGroup>
-            
-            <NavItem 
-              href="/admin/denuncias" 
-              icon={<FaRegFlag className="text-red-500" />} 
-              label="Denúncias" 
-              count={pendingReportsCount}
-            />
-            
-            <NavItem href="/admin/destaques" icon={<FaImages />} label="Destaques/Stories" />
-            <NavItem href="/admin/classificados" icon={<FaStore />} label="Classificados" />
-            <NavItem href="/admin/faturamento" icon={<FaChartLine />} label="Faturamento" />
-            <NavItem href="/admin/cupons" icon={<FaTicketAlt />} label="Cupons" />
+            {menuItems.map((item) => {
+              const isActive = pathname === item.href || 
+                             (item.href === '/admin/anuncios' && pathname.includes('/admin/anuncios'));
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center justify-between px-6 py-3 text-sm transition-colors ${
+                    isActive
+                      ? 'bg-gray-900 text-white border-l-4 border-blue-500'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <item.icon className="mr-3" />
+                    {item.label}
+                  </div>
+                  {item.badge && (
+                    <span className={`${item.badgeColor} text-white text-xs rounded-full px-2 py-1 font-bold animate-pulse`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
             
             <button 
               onClick={handleLogout}
@@ -476,6 +474,24 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
         
         {/* Conteúdo principal */}
         <main className="flex-1 p-4 md:p-6 overflow-auto">
+          {/* Mostrar alerta se houver muitos itens pendentes */}
+          {(pendingAdsCount > 5 || pendingReportsCount > 5) && (
+            <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <FaExclamationTriangle className="h-5 w-5 text-yellow-400" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-yellow-700">
+                    Você tem {pendingAdsCount > 5 && `${pendingAdsCount} anúncios`}
+                    {pendingAdsCount > 5 && pendingReportsCount > 5 && ' e '}
+                    {pendingReportsCount > 5 && `${pendingReportsCount} denúncias`} aguardando revisão.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {children}
         </main>
       </div>

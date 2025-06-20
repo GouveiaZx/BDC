@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { FaCamera, FaInfoCircle, FaTimes, FaArrowLeft } from 'react-icons/fa';
+import { useRouter } from 'next/navigation';
 
 interface FormData {
   title: string;
@@ -13,9 +14,12 @@ interface FormData {
   city: string;
   state: string;
   images: File[];
+  phone: string;
+  whatsapp: string;
 }
 
 const NewAdPage = () => {
+  const router = useRouter();
   const [imageURLs, setImageURLs] = useState<string[]>([]);
   const [formData, setFormData] = useState<FormData>({
     title: '',
@@ -24,9 +28,43 @@ const NewAdPage = () => {
     price: '',
     city: '',
     state: '',
-    images: []
+    images: [],
+    phone: '',
+    whatsapp: ''
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // Verificar autenticação
+  useEffect(() => {
+    const checkAuth = () => {
+      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      const userEmail = localStorage.getItem('userEmail') || sessionStorage.getItem('userEmail');
+      
+      if (!userId || !userEmail) {
+        alert('Você precisa estar logado para criar um anúncio');
+        router.push('/login');
+        return;
+      }
+      
+      setIsAuthenticated(true);
+      
+      // Preencher telefone e WhatsApp do usuário se disponíveis
+      const userPhone = localStorage.getItem('userPhone') || '';
+      const userWhatsapp = localStorage.getItem('userWhatsapp') || '';
+      
+      if (userPhone || userWhatsapp) {
+        setFormData(prev => ({
+          ...prev,
+          phone: userPhone,
+          whatsapp: userWhatsapp || userPhone
+        }));
+      }
+    };
+    
+    checkAuth();
+  }, [router]);
   
   const categories = [
     { id: 'carros', name: 'Carros' },
@@ -38,11 +76,24 @@ const NewAdPage = () => {
   ];
   
   const states = [
+    { id: 'MA', name: 'Maranhão' },
     { id: 'SP', name: 'São Paulo' },
     { id: 'RJ', name: 'Rio de Janeiro' },
     { id: 'MG', name: 'Minas Gerais' },
     { id: 'BA', name: 'Bahia' },
     { id: 'RS', name: 'Rio Grande do Sul' }
+  ];
+  
+  // Lista de cidades do Maranhão
+  const citiesMA = [
+    'Barra do Corda',
+    'Fernando Falcão',
+    'Jenipapo dos Vieiras',
+    'Presidente Dutra',
+    'Grajaú',
+    'Formosa da Serra Negra',
+    'Itaipava do Grajaú',
+    'Esperantinópolis'
   ];
   
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -87,7 +138,7 @@ const NewAdPage = () => {
     }
   };
   
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
       
@@ -171,18 +222,106 @@ const NewAdPage = () => {
     return Object.keys(newErrors).length === 0;
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const uploadImagesToSupabase = async () => {
+    const uploadedUrls: string[] = [];
+    
+    for (const file of formData.images) {
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/upload/images', {
+          method: 'POST',
+          body: formData
+        });
+        
+        if (response.ok) {
+          const { url } = await response.json();
+          uploadedUrls.push(url);
+        } else {
+          console.error('Erro ao fazer upload da imagem');
+          // Em caso de erro, usar imagem padrão
+          uploadedUrls.push('/images/no-image.png');
+        }
+      } catch (error) {
+        console.error('Erro ao fazer upload:', error);
+        uploadedUrls.push('/images/no-image.png');
+      }
+    }
+    
+    return uploadedUrls;
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
     
-    // Aqui virá a lógica para enviar o anúncio para o backend
-    console.log('Dados do anúncio:', formData);
+    if (!isAuthenticated) {
+      alert('Você precisa estar logado para criar um anúncio');
+      router.push('/login');
+      return;
+    }
     
-    // Redirecionar ou mostrar mensagem de sucesso
-    alert('Anúncio enviado com sucesso!');
+    setIsSubmitting(true);
+    
+    try {
+      // Fazer upload das imagens primeiro
+      const imageUrls = await uploadImagesToSupabase();
+      
+      const userId = localStorage.getItem('userId') || sessionStorage.getItem('userId');
+      const userEmail = localStorage.getItem('userEmail') || sessionStorage.getItem('userEmail');
+      
+      // Preparar dados do anúncio
+      const adData = {
+        userId,
+        title: formData.title,
+        description: formData.description,
+        price: formData.price.replace(/\./g, '').replace(',', '.'),
+        category: formData.category,
+        subCategory: '',
+        images: imageUrls.length > 0 ? imageUrls : ['/images/no-image.png'],
+        location: `${formData.city}, ${formData.state}`,
+        city: formData.city,
+        state: formData.state,
+        zipCode: '',
+        phone: formData.phone,
+        whatsapp: formData.whatsapp || formData.phone
+      };
+      
+      console.log('Enviando anúncio:', adData);
+      
+      // Enviar para a API
+      const response = await fetch('/api/ads', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(adData)
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        alert('Anúncio criado com sucesso! Ele será revisado antes de ser publicado.');
+        
+        // Redirecionar para meus anúncios ou página inicial
+        if (userId && userId.startsWith('temp-id-')) {
+          router.push('/');
+        } else {
+          router.push('/painel-anunciante/meus-anuncios');
+        }
+      } else {
+        throw new Error(result.error || 'Erro ao criar anúncio');
+      }
+    } catch (error) {
+      console.error('Erro ao criar anúncio:', error);
+      alert('Ocorreu um erro ao criar o anúncio. Por favor, tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   // Função para limpar URLs de imagens com aspas extras
@@ -216,6 +355,17 @@ const NewAdPage = () => {
             Anuncie seu produto ou serviço gratuitamente
           </p>
         </div>
+        
+        {!isAuthenticated ? (
+          <div className="bg-yellow-900/20 border border-yellow-700 rounded-lg p-4 mb-6">
+            <p className="text-yellow-300">
+              Você precisa estar logado para criar um anúncio. 
+              <Link href="/login" className="ml-2 underline hover:text-yellow-200">
+                Fazer login
+              </Link>
+            </p>
+          </div>
+        ) : null}
         
         <div className="bg-gray-800 rounded-xl shadow-xl overflow-hidden">
           <div className="p-6">
@@ -344,20 +494,70 @@ const NewAdPage = () => {
                   <label htmlFor="city" className="block text-sm font-medium text-gray-300">
                     Cidade *
                   </label>
-                  <input
-                    type="text"
-                    id="city"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleInputChange}
-                    className={`mt-1 block w-full p-3 bg-gray-700 border ${
-                      errors.city ? 'border-red-500' : 'border-gray-600'
-                    } rounded-md text-white shadow-sm focus:ring-primary focus:border-primary`}
-                    placeholder="Sua cidade"
-                  />
+                  {formData.state === 'MA' ? (
+                    <select
+                      id="city"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      className={`mt-1 block w-full p-3 bg-gray-700 border ${
+                        errors.city ? 'border-red-500' : 'border-gray-600'
+                      } rounded-md text-white shadow-sm focus:ring-primary focus:border-primary`}
+                    >
+                      <option value="">Selecione uma cidade</option>
+                      {citiesMA.map(city => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      id="city"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleInputChange}
+                      className={`mt-1 block w-full p-3 bg-gray-700 border ${
+                        errors.city ? 'border-red-500' : 'border-gray-600'
+                      } rounded-md text-white shadow-sm focus:ring-primary focus:border-primary`}
+                      placeholder="Sua cidade"
+                    />
+                  )}
                   {errors.city && (
                     <p className="mt-1 text-sm text-red-500">{errors.city}</p>
                   )}
+                </div>
+              </div>
+              
+              {/* Contato */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-300">
+                    Telefone
+                  </label>
+                  <input
+                    type="text"
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white shadow-sm focus:ring-primary focus:border-primary"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="whatsapp" className="block text-sm font-medium text-gray-300">
+                    WhatsApp
+                  </label>
+                  <input
+                    type="text"
+                    id="whatsapp"
+                    name="whatsapp"
+                    value={formData.whatsapp}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full p-3 bg-gray-700 border border-gray-600 rounded-md text-white shadow-sm focus:ring-primary focus:border-primary"
+                    placeholder="(00) 00000-0000"
+                  />
                 </div>
               </div>
               
@@ -432,10 +632,7 @@ const NewAdPage = () => {
                   </Link>
                 </p>
                 <p className="mt-2">
-                  Seu anúncio será válido por 90 dias. Para aumentar o número de anúncios e obter recursos premium, considere assinar um de nossos{' '}
-                  <Link href="/planos" className="text-primary hover:underline">
-                    planos
-                  </Link>.
+                  Seu anúncio será revisado antes de ser publicado. Anúncios gratuitos ficam ativos por 90 dias.
                 </p>
               </div>
               
@@ -443,9 +640,14 @@ const NewAdPage = () => {
               <div>
                 <button
                   type="submit"
-                  className="w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-primary hover:bg-primary-light focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
+                  disabled={isSubmitting || !isAuthenticated}
+                  className={`w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-black ${
+                    isSubmitting || !isAuthenticated
+                      ? 'bg-gray-600 cursor-not-allowed'
+                      : 'bg-primary hover:bg-primary-light'
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary`}
                 >
-                  Publicar anúncio
+                  {isSubmitting ? 'Enviando...' : 'Publicar anúncio'}
                 </button>
               </div>
             </form>
