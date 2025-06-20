@@ -128,7 +128,7 @@ export default function Planos() {
     
     if (!isAuthenticated) {
       console.log('❌ Usuário não está logado, redirecionando para login');
-      const redirectUrl = `/login?redirect=${encodeURIComponent('/planos')}`;
+      const redirectUrl = `/login?redirect=${encodeURIComponent('/painel-anunciante/planos')}`;
       window.location.assign(redirectUrl);
       return;
     }

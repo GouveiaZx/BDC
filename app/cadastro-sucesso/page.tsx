@@ -15,7 +15,7 @@ export default function RegistrationSuccess() {
       setCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          router.push('/login');
+          router.push('/painel-anunciante/planos');
           return 0;
         }
         return prev - 1;
@@ -66,15 +66,15 @@ export default function RegistrationSuccess() {
           
           <div className="mb-6">
             <Link 
-              href="/login" 
+              href="/painel-anunciante/planos" 
               className="inline-block w-full py-3 px-4 border border-transparent rounded-md shadow-sm text-black bg-green-500 hover:bg-green-600 font-medium"
             >
-              Ir para o login
+              Escolher um plano
             </Link>
           </div>
           
           <p className="text-sm text-gray-500">
-            Redirecionando para a página de login em {countdown} segundos...
+            Redirecionando para escolha de planos em {countdown} segundos...
           </p>
         </div>
       </div>

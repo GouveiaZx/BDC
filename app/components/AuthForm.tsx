@@ -501,9 +501,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ initialMode = 'login' }) => {
             // Exibir mensagem de sucesso
             setSuccessMessage('Conta criada com sucesso! Você será redirecionado em instantes...');
             
-            // Obter URL de redirecionamento (para registro, usar planos como padrão)
+            // Obter URL de redirecionamento (para registro, usar planos do painel como padrão)
             const redirectParam = searchParams.get('redirect');
-            const redirectUrl = redirectParam ? decodeURIComponent(redirectParam) : '/planos';
+            const redirectUrl = redirectParam ? decodeURIComponent(redirectParam) : '/painel-anunciante/planos';
             console.log('🎯 Redirecionando usuário registrado para:', redirectUrl);
             
             // Redirecionar para a página apropriada com delay maior para garantir sincronização
