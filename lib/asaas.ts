@@ -114,8 +114,9 @@ export class AsaasClient {
     this.client = axios.create({
       baseURL: config.apiUrl,
       headers: {
-        'access_token': apiKey, // CONFORME DOCUMENTAÇÃO OFICIAL
+        'access_token': apiKey, // Header padrão do ASAAS
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'User-Agent': 'BDC-Classificados/1.0'
       },
       timeout: 30000
