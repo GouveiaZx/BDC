@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { 
@@ -43,13 +43,8 @@ export default function AdminClassificados() {
   const [showRejectionForm, setShowRejectionForm] = useState(false);
 
   
-  // Modificar useEffect para buscar dados reais em vez de usar dados de exemplo
-  useEffect(() => {
-    fetchBusinesses();
-  }, []);
-  
-  // Adicionar função para buscar dados das empresas
-  const fetchBusinesses = async () => {
+  // Adicionar função para buscar dados das empresas usando useCallback
+  const fetchBusinesses = useCallback(async () => {
     try {
       console.log('=============================================');
       console.log('INICIANDO BUSCA DE EMPRESAS NA ÁREA ADMIN');
@@ -98,14 +93,19 @@ export default function AdminClassificados() {
     } catch (error) {
       console.error('Erro ao buscar empresas:', error);
     }
-  };
+  }, [statusFilter, categoryFilter, searchTerm]);
+  
+  // Modificar useEffect para buscar dados reais em vez de usar dados de exemplo
+  useEffect(() => {
+    fetchBusinesses();
+  }, [fetchBusinesses]);
   
   // Atualizar useEffect para reagir às mudanças nos filtros
   useEffect(() => {
     if (businesses.length > 0) {
       fetchBusinesses();
     }
-  }, [statusFilter, categoryFilter, searchTerm]);
+  }, [businesses.length, fetchBusinesses, statusFilter, categoryFilter, searchTerm]);
   
   // Efeito para filtrar empresas
   useEffect(() => {
