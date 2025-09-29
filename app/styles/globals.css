@@ -1,0 +1,443 @@
+/* Preconnect to Google Fonts for faster loading */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Roboto:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Prevent layout shift */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+:root {
+  --primary: #7ad38e;
+  --primary-dark: #5baf6f;
+  --primary-light: #8CE7A4;
+  --accent: #8CE7A4;
+  --background: #ffffff;
+  --card-bg: #ffffff;
+  --card-text: #000000;
+  --text-dark: #222222;
+  --text-medium: #444444;
+  --text-light: #666666;
+  
+  /* Performance optimizations */
+  --shadow-light: 0 4px 20px rgba(0, 0, 0, 0.1);
+  --shadow-medium: 0 15px 30px rgba(0, 0, 0, 0.2);
+  --transition-fast: 0.2s ease;
+  --transition-smooth: 0.3s ease;
+  --border-radius: 12px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: var(--background);
+  color: var(--text-dark);
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  margin: 0;
+  padding: 0;
+}
+
+/* Melhorias para legibilidade */
+p, li, span, div {
+  color: var(--text-medium);
+}
+
+/* Garantir que texto em elementos específicos tenha contraste adequado */
+.text-gray-500 {
+  color: var(--text-medium) !important;
+}
+
+.text-gray-700 {
+  color: var(--text-dark) !important;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 15% 50%, rgba(122, 211, 142, 0.08) 0%, transparent 25%),
+              radial-gradient(circle at 85% 30%, rgba(122, 211, 142, 0.05) 0%, transparent 30%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Remover scrollbar mas manter a funcionalidade */
+.scrollbar-none {
+  -ms-overflow-style: none;  /* IE e Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none; /* Chrome, Safari e Opera */
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  color: #000000;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+a {
+  color: var(--primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--primary-light);
+}
+
+button {
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: var(--border-radius);
+  color: var(--card-text);
+  box-shadow: var(--shadow-light);
+  transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  will-change: transform, box-shadow; /* Optimize for animations */
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-medium);
+}
+
+.section-title {
+  position: relative;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.section-title::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 60px;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  border-radius: 3px;
+}
+
+.btn {
+  display: inline-block;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 500;
+  text-align: center;
+  transition: all 0.3s ease;
+  border: none;
+  position: relative;
+  overflow: hidden;
+  font-size: 0.95rem;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.7s ease;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+.btn-primary {
+  background: linear-gradient(to right, var(--primary), var(--primary-light));
+  color: #000000;
+  font-weight: 600;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(to right, var(--primary-dark), var(--primary));
+  box-shadow: 0 5px 15px rgba(122, 211, 142, 0.3);
+}
+
+.btn-secondary {
+  background-color: #2d2d2d;
+  color: #ffffff;
+}
+
+.btn-secondary:hover {
+  background-color: #3d3d3d;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-outline {
+  background-color: transparent;
+  border: 2px solid var(--primary);
+  color: var(--primary);
+}
+
+.btn-outline:hover {
+  background-color: var(--primary);
+  color: #000000;
+  box-shadow: 0 5px 15px rgba(122, 211, 142, 0.2);
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 12px;
+  }
+  
+  .btn {
+    padding: 8px 18px;
+  }
+  
+  h1 {
+    font-size: 2rem;
+  }
+  
+  h2 {
+    font-size: 1.6rem;
+  }
+  
+  h3 {
+    font-size: 1.3rem;
+  }
+}
+
+/* Componentes específicos */
+.highlight-stories {
+  margin-top: 16px;
+  padding: 12px 0;
+  display: flex;
+  overflow-x: auto;
+  gap: 16px;
+  scrollbar-width: none; /* Para Firefox */
+}
+
+.highlight-stories::-webkit-scrollbar {
+  display: none; /* Para Chrome, Safari e Opera */
+}
+
+.story-item {
+  min-width: 80px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background-color: #1a1a1a;
+  position: relative;
+  padding: 3px;
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+.story-item:hover {
+  transform: scale(1.08);
+}
+
+.story-item__border {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(45deg, var(--primary), var(--primary-light));
+  padding: 2px;
+}
+
+.story-item__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #000;
+}
+
+.featured-ad {
+  display: inline-block;
+  padding: 4px 10px;
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  color: #000000;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(122, 211, 142, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(122, 211, 142, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(122, 211, 142, 0);
+  }
+}
+
+/* Estilos para banners */
+.banner-gradient {
+  background: linear-gradient(90deg, var(--primary), var(--primary-light));
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.banner-gradient::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  background: url('/images/pattern.svg');
+  background-size: cover;
+  opacity: 0.1;
+  z-index: 0;
+}
+
+.banner-dark {
+  background: #161616;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Animações */
+.fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glassmorphism elements */
+.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+/* Remover espaços indesejados entre componentes */
+header, footer, main, section {
+  margin: 0;
+  padding: 0;
+}
+
+/* Garantir que as seções fluam continuamente */
+.section-connector {
+  margin-top: -1px;
+  margin-bottom: -1px;
+}
+
+/* Espaçamento padrão para páginas */
+.default-page-spacing {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+/* Remover espaçamento específico para a página de perfil da loja */
+.loja-profile-page .default-page-spacing {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Performance improvements */
+img, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Optimize font loading */
+.font-loading {
+  font-display: swap;
+}
+
+/* Reduce layout shift */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, transparent 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Smooth scrolling optimization */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+} 

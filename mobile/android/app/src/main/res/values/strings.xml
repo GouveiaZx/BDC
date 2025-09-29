@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BuscaAquiBdC</string>
+    <string name="app_description">A maior plataforma de classificados de Balsas - MA</string>
+    
+    <!-- Loading messages -->
+    <string name="loading">Carregando...</string>
+    <string name="loading_website">Carregando BuscaAquiBdC...</string>
+    
+    <!-- Error messages -->
+    <string name="error_network">Erro de conexão. Verifique sua internet.</string>
+    <string name="error_loading">Erro ao carregar a página</string>
+    <string name="retry">Tentar novamente</string>
+    
+    <!-- Permission messages -->
+    <string name="permission_camera_rationale">Permissão de câmera necessária para tirar fotos dos anúncios</string>
+    <string name="permission_location_rationale">Permissão de localização necessária para anúncios baseados em localização</string>
+    <string name="permission_storage_rationale">Permissão de armazenamento necessária para upload de imagens</string>
+    
+    <!-- Navigation -->
+    <string name="exit_app">Pressione novamente para sair</string>
+</resources>

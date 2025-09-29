@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 200 200">
+  <style>
+    .primary-color { fill: #8CE7A4; }
+    .secondary-color { fill: #333; }
+    .tertiary-color { fill: #555; }
+    .background-color { fill: #222; }
+  </style>
+  
+  <!-- Background -->
+  <circle cx="100" cy="100" r="90" class="background-color" />
+  
+  <!-- Magnifying glass -->
+  <g transform="translate(50, 70) scale(0.9)">
+    <circle cx="40" cy="40" r="30" fill="none" stroke="#666" stroke-width="8" />
+    <line x1="62" y1="62" x2="90" y2="90" stroke="#666" stroke-width="8" stroke-linecap="round" />
+    <path d="M30 40 l20 0" stroke="#8CE7A4" stroke-width="6" stroke-linecap="round" />
+    <path d="M40 30 l0 20" stroke="#8CE7A4" stroke-width="6" stroke-linecap="round" />
+  </g>
+  
+  <!-- Text "No results" -->
+  <text x="100" y="150" font-family="Arial, sans-serif" font-size="16" fill="#8CE7A4" text-anchor="middle">Sem resultados</text>
+</svg> 

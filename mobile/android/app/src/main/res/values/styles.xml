@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.BDCClassificados" parent="Theme.AppCompat.Light.DarkActionBar">
+        <item name="colorPrimary">#7ad38e</item>
+        <item name="colorPrimaryVariant">#5fb973</item>
+        <item name="colorOnPrimary">#ffffff</item>
+        <item name="colorSecondary">#7ad38e</item>
+        <item name="colorSecondaryVariant">#5fb973</item>
+        <item name="colorOnSecondary">#000000</item>
+        <item name="android:statusBarColor">#000000</item>
+        <item name="android:navigationBarColor">#000000</item>
+    </style>
+
+    <!-- Theme without ActionBar for main activity -->
+    <style name="Theme.BDCClassificados.NoActionBar" parent="Theme.BDCClassificados">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+    </style>
+
+    <!-- Splash screen theme -->
+    <style name="SplashTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowDrawsSystemBarBackgrounds">false</item>
+    </style>
+</resources>
