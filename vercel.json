@@ -1,15 +1,4 @@
 {
-  "version": 2,
-  "github": {
-    "enabled": true,
-    "silent": false
-  },
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/next"
-    }
-  ],
   "functions": {
     "app/api/**/*.ts": {
       "maxDuration": 30
