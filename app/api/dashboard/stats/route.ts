@@ -4,16 +4,25 @@ import { getSupabaseClient } from '../../../lib/supabase';
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseClient();
-    
+
     // Verificar se há userId nos headers ou query params
-    let userId = request.nextUrl.searchParams.get('userId') || 
+    let userId = request.nextUrl.searchParams.get('userId') ||
                  request.headers.get('x-user-id');
-    
+
+    // Verificar autenticação primeiro
     if (!userId) {
-      return NextResponse.json(
-        { error: 'ID do usuário é obrigatório' },
-        { status: 400 }
-      );
+      // Tentar obter do middleware (header X-User-Id)
+      userId = request.headers.get('X-User-Id') || '';
+
+      if (!userId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Autenticação necessária'
+          },
+          { status: 401 }
+        );
+      }
     }
 
     // Se userId for 'current-user', retornar dados padrão/vazios

@@ -15,7 +15,18 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, name, user_type = 'advertiser', phone, city_id } = await request.json();
+    // Validar se o body existe e é válido JSON
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return NextResponse.json(
+        { success: false, error: 'Dados inválidos. Esperado JSON válido.' },
+        { status: 400 }
+      );
+    }
+
+    const { email, password, name, user_type = 'advertiser', phone, city_id } = body;
 
     // Validação básica
     if (!email || !password || !name) {
@@ -156,8 +167,19 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error) {
+    console.error('Erro no registro:', error);
+
+    // Se já retornamos uma resposta de erro, não fazer nada
+    if (error instanceof Response) {
+      return error;
+    }
+
+    // Erro genérico para problemas inesperados
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      {
+        success: false,
+        error: 'Erro ao processar registro. Tente novamente.'
+      },
       { status: 500 }
     );
   }

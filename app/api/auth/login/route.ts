@@ -12,12 +12,32 @@ if (!supabaseUrl || !supabaseServiceKey) {
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, remember_me = false } = await request.json();
+    // Validar se o body existe e é válido JSON
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      return NextResponse.json(
+        { success: false, error: 'Dados inválidos. Esperado JSON válido.' },
+        { status: 400 }
+      );
+    }
+
+    const { email, password, remember_me = false } = body;
 
     // Validação básica
     if (!email || !password) {
       return NextResponse.json(
         { success: false, error: 'Email e senha são obrigatórios' },
+        { status: 400 }
+      );
+    }
+
+    // Validar formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { success: false, error: 'Formato de email inválido' },
         { status: 400 }
       );
     }
@@ -132,8 +152,19 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error) {
+    console.error('Erro no login:', error);
+
+    // Se já retornamos uma resposta de erro, não fazer nada
+    if (error instanceof Response) {
+      return error;
+    }
+
+    // Erro genérico para problemas inesperados
     return NextResponse.json(
-      { success: false, error: 'Erro interno do servidor' },
+      {
+        success: false,
+        error: 'Erro ao processar login. Tente novamente.'
+      },
       { status: 500 }
     );
   }

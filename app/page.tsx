@@ -96,8 +96,11 @@ async function getApprovedHighlights() {
 // Função para buscar anúncios aprovados via API interna
 async function getRecentApprovedAds() {
   try {
-    // Usar URL relativa para evitar problemas de CORS
-    const response = await fetch('/api/ads?limit=8&status=active', {
+    // Usar URL absoluta para evitar problemas de parsing
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    const apiUrl = `${baseUrl}/api/ads?limit=8&status=active`;
+
+    const response = await fetch(apiUrl, {
       cache: 'no-store',
       headers: {
         'Cache-Control': 'no-cache',
