@@ -192,9 +192,23 @@ export const SubscriptionProvider = ({ children, user }: { children: ReactNode, 
         }
         
       } else {
-        // Em produção, usar plano gratuito por enquanto
-        // TODO: Implementar busca real de assinatura ASAAS quando métodos estiverem prontos
-        setCurrentPlan(SubscriptionPlan.FREE);
+        // Buscar plano real do usuário
+        try {
+          const response = await fetch(`/api/users/subscription?userId=${user.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.subscription) {
+              setCurrentPlan(data.subscription.plan || SubscriptionPlan.FREE);
+            } else {
+              setCurrentPlan(SubscriptionPlan.FREE);
+            }
+          } else {
+            setCurrentPlan(SubscriptionPlan.FREE);
+          }
+        } catch (error) {
+          console.error('Erro ao buscar assinatura:', error);
+          setCurrentPlan(SubscriptionPlan.FREE);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar informações de assinatura:', error);

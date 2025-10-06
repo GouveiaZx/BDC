@@ -6,6 +6,7 @@ import { convertTempIdToUUID } from '../../lib/utils';
 import { SubscriptionPlan } from '../../models/types';
 import { canFeatureAd, getSubscriptionLimits } from '../../config/subscription-limits';
 import { validateHighlightCreation, isSpecialUser } from '../../lib/planLimits';
+import { ADMIN_EMAILS, isAdminEmail } from '../../config/admin';
 // Sistema de arquivo JSON temporário removido por ser inadequado para produção
 // Usando apenas banco de dados Supabase
 
@@ -123,14 +124,8 @@ export async function GET(request: NextRequest) {
     // Buscar dados dos usuários
     const userIds = destaquesFiltrados.map(h => h.user_id).filter(Boolean);
     const uniqueUserIds = Array.from(new Set(userIds));
-    
+
     let usersMap: Record<string, any> = {};
-    const ADMIN_EMAILS = [
-      'admin@buscaaquibdc.com.br',
-      'gouveiarx@gmail.com',
-      'gouveiarx@hotmail.com',
-      'rodrigogouveiarx@gmail.com'
-    ];
     if (uniqueUserIds.length > 0) {
       // Estratégia 1: Buscar na tabela users
       try {
@@ -141,7 +136,7 @@ export async function GET(request: NextRequest) {
         
         if (!usersError && users) {
           users.forEach(user => {
-            const isAdmin = user.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
+            const isAdmin = user.email && isAdminEmail(user.email);
             usersMap[user.id] = {
               id: user.id,
               name: user.name,
@@ -166,7 +161,7 @@ export async function GET(request: NextRequest) {
           
           if (!profilesError && profiles) {
             profiles.forEach(profile => {
-              const isAdmin = profile.is_admin || (profile.email && ADMIN_EMAILS.includes(profile.email.toLowerCase()));
+              const isAdmin = profile.is_admin || (profile.email && isAdminEmail(profile.email));
               usersMap[profile.user_id] = {
                 id: profile.user_id,
                 name: profile.name,
@@ -192,7 +187,7 @@ export async function GET(request: NextRequest) {
           
           if (!businessError && businessProfiles) {
             businessProfiles.forEach(profile => {
-              const isAdmin = profile.business_email && ADMIN_EMAILS.includes(profile.business_email.toLowerCase());
+              const isAdmin = profile.business_email && isAdminEmail(profile.business_email);
               usersMap[profile.user_id] = {
                 id: profile.user_id,
                 name: profile.business_name || profile.company_name,

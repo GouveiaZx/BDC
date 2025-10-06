@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { logger } from '../lib/logger';
+import { ADMIN_EMAILS, isAdminEmail } from '../config/admin';
 
 interface AdminContextType {
   isAuthenticated: boolean;
@@ -12,20 +13,6 @@ interface AdminContextType {
 }
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
-
-// Lista de emails autorizados como administradores
-const ADMIN_EMAILS = [
-  'admin@buscaaquibdc.com.br',
-  'gouveiarx@gmail.com',
-  'gouveiarx@hotmail.com'
-];
-
-// Credenciais válidas para login administrativo
-const ADMIN_CREDENTIALS = [
-  { email: 'admin@buscaaquibdc.com.br', password: 'admin123' },
-  { email: 'gouveiarx@gmail.com', password: 'admin123' },
-  { email: 'gouveiarx@hotmail.com', password: 'admin123' }
-];
 
 export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -48,7 +35,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       const adminAuth = localStorage.getItem('admin-auth');
       const adminEmail = localStorage.getItem('admin-email');
 
-      if (adminAuth === 'true' && adminEmail && ADMIN_EMAILS.includes(adminEmail)) {
+      if (adminAuth === 'true' && adminEmail && isAdminEmail(adminEmail)) {
         setIsAuthenticated(true);
         // Definir cookie para as APIs
         document.cookie = 'admin-auth=true; path=/; max-age=86400'; // 24 horas
@@ -105,20 +92,27 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      
-      // Verificar credenciais
-      const validCredential = ADMIN_CREDENTIALS.find(
-        cred => cred.email.toLowerCase() === email.toLowerCase() && cred.password === password
-      );
-      
-      if (validCredential) {
+
+      // Verificar se é um email admin autorizado
+      if (!isAdminEmail(email)) {
+        return false;
+      }
+
+      // Fazer login via API que verifica no banco de dados
+      const response = await fetch('/api/admin/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.token) {
         // Armazenar estado de autenticação
         localStorage.setItem('admin-auth', 'true');
         localStorage.setItem('admin-email', email);
-        
-        // Definir cookie para as APIs
-        document.cookie = 'admin-auth=true; path=/; max-age=86400'; // 24 horas
-        
+
+        // Cookie já é definido pela API
         setIsAuthenticated(true);
         return true;
       } else {

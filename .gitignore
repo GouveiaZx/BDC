@@ -24,6 +24,7 @@ yarn-error.log*
 
 # Local env files
 .env.local
+.env
 
 
 # Vercel
@@ -78,4 +79,14 @@ public/debug-*
 
 # Arquivos de configuração temporária
 config/temp/
-migrations/temp/ backups-console-logs/
+migrations/temp/
+backups-console-logs/
+
+# Documentation archives
+docs/archive/
+
+# Deploy configurations (use Vercel config instead)
+deploy.sh
+setup-server.sh
+nginx.conf
+ecosystem.config.js

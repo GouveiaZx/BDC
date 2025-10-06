@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import { logger } from '../../../lib/secureLogger';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -152,7 +153,7 @@ export async function POST(request: NextRequest) {
     return response;
 
   } catch (error) {
-    console.error('Erro no login:', error);
+    logger.error('Login failed', { error: error instanceof Error ? error.message : 'Unknown error' });
 
     // Se já retornamos uma resposta de erro, não fazer nada
     if (error instanceof Response) {

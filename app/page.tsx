@@ -9,14 +9,12 @@ import BusinessesSection from './components/BusinessesSection';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+import { getApiUrl, API_URLS } from './config/urls';
+
 // Função para buscar destaques aprovados via API interna
 async function getApprovedHighlights() {
   try {
-    // Usar URL absoluta para server-side rendering
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
-    console.log('🔍 [getApprovedHighlights] Fazendo requisição para:', `${baseUrl}/api/destaques`);
-
-    const response = await fetch(`${baseUrl}/api/destaques`, {
+    const response = await fetch(getApiUrl(API_URLS.DESTAQUES), {
       cache: 'no-store',
       headers: {
         'Content-Type': 'application/json',
@@ -24,17 +22,11 @@ async function getApprovedHighlights() {
     });
 
     if (!response.ok) {
-      console.error('❌ [getApprovedHighlights] Erro na API de highlights:', response.status, response.statusText);
+      console.error('[getApprovedHighlights] Erro na API de highlights:', response.status, response.statusText);
       return [];
     }
 
     const data = await response.json();
-    console.log('📊 [getApprovedHighlights] Dados recebidos da API:', {
-      success: data.success,
-      total: data.total,
-      highlightsLength: data.highlights ? data.highlights.length : 0,
-      highlights: data.highlights
-    });
     
     // Verificar se data existe e tem a estrutura esperada
     if (!data || typeof data !== 'object') {

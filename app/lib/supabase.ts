@@ -201,71 +201,7 @@ export function getSupabaseAdminClient(): SupabaseClient {
   }
 }
 
-/**
- * Criar um cliente offline que não faz requisições reais
- * @returns Cliente Supabase offline
- */
-function createOfflineClient(): SupabaseClient {
-  // Criar um mock do cliente Supabase que não faz requisições reais
-  const mockClient: any = {
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          single: async () => ({ data: null, error: null }),
-          maybeSingle: async () => ({ data: null, error: null }),
-          limit: () => ({
-            order: () => ({
-              then: (cb: Function) => cb({ data: [], error: null })
-            })
-          }),
-          then: (cb: Function) => cb({ data: [], error: null })
-        }),
-        order: () => ({
-          limit: () => ({
-            then: (cb: Function) => cb({ data: [], error: null })
-          })
-        }),
-        limit: () => ({
-          order: () => ({
-            then: (cb: Function) => cb({ data: [], error: null })
-          })
-        }),
-        then: (cb: Function) => cb({ data: [], error: null })
-      }),
-      insert: () => ({ data: null, error: null }),
-      upsert: () => ({ data: null, error: null }),
-      update: () => ({
-        eq: () => ({ data: null, error: null })
-      }),
-      delete: () => ({
-        eq: () => ({ data: null, error: null })
-      })
-    }),
-    rpc: () => ({ data: null, error: null }),
-    auth: {
-      onAuthStateChange: () => {},
-      getUser: async () => ({ data: { user: null }, error: null }),
-      getSession: async () => ({ data: { session: null }, error: null }),
-      signOut: async () => ({ error: null })
-    },
-    storage: {
-      from: () => ({
-        upload: async () => ({ data: { path: 'offline-path' }, error: null }),
-        getPublicUrl: () => ({ data: { publicUrl: '/images/placeholder.png' } }),
-        list: async () => ({ data: [], error: null }),
-        remove: async () => ({ data: null, error: null })
-      }),
-      listBuckets: async () => ({ data: [], error: null }),
-      getBucket: async () => ({ data: null, error: null }),
-      createBucket: async () => ({ data: null, error: null })
-    },
-    rest: {
-      headers: {}
-    }
-  }
-  
-  return mockClient as SupabaseClient
-}
+// Função createOfflineClient removida - não estava sendo utilizada
 
 /**
  * Verificar e criar buckets do storage se necessário

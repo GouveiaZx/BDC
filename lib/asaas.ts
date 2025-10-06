@@ -148,7 +148,7 @@ export class AsaasClient {
 
   async updateCustomer(customerId: string, customerData: Partial<Customer>): Promise<AsaasResponse> {
     try {
-      const response = await this.client.post(`/customers/${customerId}`, customerData);
+      const response = await this.client.put(`/customers/${customerId}`, customerData);
       return response.data;
     } catch (error: any) {
       throw new Error(`Erro ao atualizar cliente no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);
@@ -204,7 +204,7 @@ export class AsaasClient {
 
   async updateSubscription(subscriptionId: string, subscriptionData: Partial<SubscriptionData>): Promise<AsaasResponse> {
     try {
-      const response = await this.client.post(`/subscriptions/${subscriptionId}`, subscriptionData);
+      const response = await this.client.put(`/subscriptions/${subscriptionId}`, subscriptionData);
       return response.data;
     } catch (error: any) {
       throw new Error(`Erro ao atualizar assinatura no Asaas: ${error.response?.data?.errors?.[0]?.description || error.message}`);

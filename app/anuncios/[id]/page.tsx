@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getFeaturedAds, getRecentAds } from '../../utils/mockData';
+// Mock data removed - using real API data only
 import { createClient } from '@supabase/supabase-js';
 import AdCard from '../../components/AdCard';
 import { FaMapMarkerAlt, FaCalendarAlt, FaEye, FaShareAlt, FaHeart, FaRegHeart, FaWhatsapp, FaPhone } from 'react-icons/fa';

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SubscriptionPlan } from '../models/types';
 import { FeatureType } from './subscriptionContext';
 import { getSubscriptionLimits } from '../config/subscription-limits';
+import { getSupabaseAdminClient } from './supabase';
 
 // Mapeamento de recursos/funcionalidades para planos mínimos necessários
 const featureToMinimumPlanMap: Record<FeatureType, SubscriptionPlan> = {
@@ -50,19 +51,39 @@ export async function checkSubscriptionAccess(
   }
   
   try {
-    // Por enquanto, assumir plano gratuito para todos os usuários
-    // TODO: Implementar busca real de assinatura quando métodos estiverem disponíveis
-    const currentPlan = SubscriptionPlan.FREE;
+    // Buscar plano real do usuário no Supabase
+    const supabase = getSupabaseAdminClient();
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('*, plans(slug)')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const planSlugToEnum: Record<string, SubscriptionPlan> = {
+      'gratuito': SubscriptionPlan.FREE,
+      'micro-empresa': SubscriptionPlan.MICRO_BUSINESS,
+      'pequena-empresa': SubscriptionPlan.SMALL_BUSINESS,
+      'empresa-simples': SubscriptionPlan.BUSINESS_SIMPLE,
+      'empresa-plus': SubscriptionPlan.BUSINESS_PLUS,
+    };
+
+    const currentPlan = subscription?.plans?.slug
+      ? planSlugToEnum[subscription.plans.slug] || SubscriptionPlan.FREE
+      : SubscriptionPlan.FREE;
+
     const hasAccess = planHasAccess(currentPlan, feature);
-    
+
     if (!hasAccess) {
-      return NextResponse.json({ 
-        error: 'Plano atual não permite esta ação', 
+      return NextResponse.json({
+        error: 'Plano atual não permite esta ação',
         currentPlan,
-        requiredPlan: featureToMinimumPlanMap[feature] 
+        requiredPlan: featureToMinimumPlanMap[feature]
       }, { status: 403 });
     }
-    
+
     return null; // Continue com o request
   } catch (error) {
     // Erro ao verificar assinatura
@@ -93,20 +114,42 @@ export async function checkResourceLimits(
   }
   
   try {
-    // Por enquanto, assumir plano gratuito para todos os usuários
-    // TODO: Implementar busca real de assinatura quando métodos estiverem disponíveis
-    const currentPlan = SubscriptionPlan.FREE;
-    
+    // Buscar plano real do usuário no Supabase
+    const supabase = getSupabaseAdminClient();
+    const { data: subscription } = await supabase
+      .from('subscriptions')
+      .select('*, plans(slug)')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    const planSlugToEnum: Record<string, SubscriptionPlan> = {
+      'gratuito': SubscriptionPlan.FREE,
+      'micro-empresa': SubscriptionPlan.MICRO_BUSINESS,
+      'pequena-empresa': SubscriptionPlan.SMALL_BUSINESS,
+      'empresa-simples': SubscriptionPlan.BUSINESS_SIMPLE,
+      'empresa-plus': SubscriptionPlan.BUSINESS_PLUS,
+    };
+
+    const currentPlan = subscription?.plans?.slug
+      ? planSlugToEnum[subscription.plans.slug] || SubscriptionPlan.FREE
+      : SubscriptionPlan.FREE;
+
     const limits = getSubscriptionLimits(currentPlan);
-    
-    // Esta parte depende de como os recursos são contados na sua aplicação
-    // Aqui estamos simulando uma busca em API ou banco de dados
+
+    // Buscar contagem atual de recursos do usuário
     let currentCount = 0;
-    
+
     if (resourceType === 'ads') {
-      // Buscar contagem atual de anúncios do usuário
-      // Exemplo: currentCount = await getAdCountForUser(userId);
-      currentCount = 0; // Substituir pela implementação real
+      // Buscar contagem real de anúncios ativos do usuário
+      const { count } = await supabase
+        .from('ads')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'active');
+      currentCount = count || 0;
       
       if (limits.maxAds !== -1 && currentCount >= limits.maxAds) {
         return NextResponse.json({ 

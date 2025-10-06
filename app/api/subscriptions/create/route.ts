@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { validateAuth } from '../../../lib/jwt';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -9,44 +10,19 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Variáveis de ambiente Supabase obrigatórias não configuradas');
 }
 
-// Helper para extrair token do usuário
-function extractUserFromRequest(request: NextRequest) {
-  try {
-    const authCookie = request.cookies.get('auth_token');
-    const authHeader = request.headers.get('authorization');
-    
-    let token = '';
-    if (authCookie) {
-      token = authCookie.value;
-    } else if (authHeader?.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-    }
-    
-    if (!token) return null;
-    
-    const decoded = JSON.parse(atob(token));
-    
-    // Verificar se token não expirou
-    if (decoded.exp && decoded.exp < Date.now()) {
-      return null;
-    }
-    
-    return decoded;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const userToken = extractUserFromRequest(request);
-    
-    if (!userToken) {
+    // Validar autenticação usando função segura
+    const authValidation = validateAuth(request);
+
+    if (!authValidation.isValid || !authValidation.user) {
       return NextResponse.json(
         { success: false, error: 'Token de autenticação necessário' },
         { status: 401 }
       );
     }
+
+    const userToken = authValidation.user;
 
     const {
       plan_id,

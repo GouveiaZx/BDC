@@ -2,13 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import { generateToken, validateAuth } from '../../../lib/jwt';
-
-// Lista de emails autorizados para acesso administrativo
-const ADMIN_EMAILS = [
-  'admin@buscaaquibdc.com.br',
-  'rodrigogouveiarx@gmail.com',
-  'developer@buscaaquibdc.com.br'
-];
+import { isAdminEmail } from '../../../config/admin';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se o email está na lista de administradores
-    if (!ADMIN_EMAILS.includes(email.toLowerCase())) {
+    if (!isAdminEmail(email)) {
       return NextResponse.json(
         { success: false, error: 'Acesso negado. Este email não possui privilégios administrativos.' },
         { status: 403 }

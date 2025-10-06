@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { FaStar, FaStarHalfAlt, FaWhatsapp, FaFacebook, FaInstagram, FaTwitter, FaGlobe, FaPhone, FaEnvelope, FaMapMarkerAlt, FaCalendarAlt, FaCheck, FaRegThumbsUp, FaShoppingBag, FaEye, FaShare, FaHeart, FaRegHeart, FaTimes, FaSearch } from 'react-icons/fa';
 import { Ad, Seller } from '../../models/types';
 import AdCard from '../../components/AdCard';
-import { getRecentAds, getSellerById } from '../../utils/mockData';
+// Mock data removed - using real API data from Supabase
 import { MapPin, Phone, Mail, Clock, Award, Share2, Bookmark, Star, Check } from 'lucide-react';
 import StoreStories from '../../components/StoreStories';
 import WhatsAppButton from '../../components/WhatsAppButton';
@@ -64,25 +64,32 @@ export default function EmpresaPage({ params }: EmpresaPageProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Buscar dados do vendedor
-        const sellerData = await getSellerById(params.id);
-        if (sellerData) {
-          setSeller(sellerData);
-          
-          // Buscar anúncios do vendedor
-          const ads = await getRecentAds(20);
-          const sellerAds = ads.filter(ad => ad.userId === params.id);
-          setAnunciosAtivos(sellerAds);
+        // Buscar dados do vendedor via API
+        const sellerResponse = await fetch(`/api/users/${params.id}`);
+        if (sellerResponse.ok) {
+          const sellerData = await sellerResponse.json();
+          if (sellerData.success && sellerData.user) {
+            setSeller(sellerData.user);
+          }
         }
-    
-    setLoading(false);
-    setActiveTab('anuncios');
+
+        // Buscar anúncios do vendedor via API
+        const adsResponse = await fetch(`/api/ads?userId=${params.id}&status=active&limit=20`);
+        if (adsResponse.ok) {
+          const adsData = await adsResponse.json();
+          if (adsData.success && adsData.ads) {
+            setAnunciosAtivos(adsData.ads);
+          }
+        }
+
+        setLoading(false);
+        setActiveTab('anuncios');
       } catch (error) {
         console.error('Erro ao buscar dados da empresa:', error);
         setLoading(false);
       }
     };
-    
+
     fetchData();
   }, [params.id]);
   

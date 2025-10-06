@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateAuth, validateAdminAuth } from './app/lib/jwt';
 import { logger } from './app/lib/secureLogger';
+import { applyRateLimit } from './app/lib/rateLimiting';
 
 /**
  * Middleware global de autenticação e segurança
@@ -41,6 +42,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Rate limiting especial para auth routes
+  if (pathname.startsWith('/api/auth/login') || pathname.startsWith('/api/auth/register')) {
+    const rateLimitResult = applyRateLimit(request, 'auth');
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, error: 'Muitas tentativas. Tente novamente em alguns minutos.' },
+        { status: 429, headers: rateLimitResult.headers }
+      );
+    }
+  }
+
   // Rotas públicas que não requerem autenticação
   const publicRoutes = [
     '/api/auth/login',
@@ -77,6 +89,15 @@ export async function middleware(request: NextRequest) {
 
   // === ROTAS ADMIN - AUTENTICAÇÃO OBRIGATÓRIA ===
   if (pathname.startsWith('/api/admin/')) {
+    // Rate limiting para rotas admin
+    const rateLimitResult = applyRateLimit(request, 'admin');
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        { success: false, error: rateLimitResult.error },
+        { status: 429, headers: rateLimitResult.headers }
+      );
+    }
+
     const validation = validateAdminAuth(request);
 
     if (!validation.isValid) {
@@ -152,10 +173,12 @@ export async function middleware(request: NextRequest) {
  */
 function addSecurityHeaders(response: NextResponse): NextResponse {
   // CORS Headers
+  const allowedOrigins = process.env.ALLOWED_ORIGINS || 'https://www.buscaaquibdc.com';
   response.headers.set(
     'Access-Control-Allow-Origin',
-    process.env.ALLOWED_ORIGINS || 'http://localhost:3000'
+    allowedOrigins
   );
+  response.headers.set('Access-Control-Allow-Credentials', 'true');
 
   response.headers.set(
     'Access-Control-Allow-Methods',
